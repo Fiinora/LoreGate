@@ -22,6 +22,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Lore Gate"
-include(":app")
+rootProject.name = "LoreGate"
+include(":composeApp")
  
