@@ -80,7 +80,7 @@ data class StoryListUiState(
     val normalStories: List<Story>
         get() = stories.filter { !it.isSecret }
     val hiddenStories: List<Story>
-        get() = stories.filter { !it.isSecret }
+        get() = stories.filter { it.isSecret }
 }
 
 sealed interface StoryListUiEvent {
@@ -310,7 +310,7 @@ fun StoryListScreen(
                                     modifier = Modifier.padding(bottom = 12.dp)
                                 )
                             }
-                            items(normalStories, key = { it.id }) { story ->
+                            items(normalStories, key = { "normal_${it.id}" }) { story ->
                                 StoryCard(
                                     story = story,
                                     isExpanded = uiState.expandedStoryId == story.id,
@@ -336,7 +336,7 @@ fun StoryListScreen(
                                     modifier = Modifier.padding(bottom = 12.dp)
                                 )
                             }
-                            items(hiddenStories, key = { it.id }) { story ->
+                            items(hiddenStories, key = { "hidden_${it.id}" }) { story ->
                                 StoryCard(
                                     story = story,
                                     isExpanded = uiState.expandedStoryId == story.id,
@@ -566,7 +566,7 @@ fun StoryProgressScreen(
                             .padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        items(uiState.stories, key = { it.id }) { story ->
+                        items(uiState.stories, key = { "progress_${it.id}" }) { story ->
                             ProgressCard(
                                 story = story,
                                 onClick = {

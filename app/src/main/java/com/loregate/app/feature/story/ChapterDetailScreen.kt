@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -479,11 +480,11 @@ fun ChapterDetailScreen(
                 IconButton(
                     onClick = { onEvent(ChapterDetailUiEvent.OnBackClicked) },
                     modifier = Modifier
-                        .padding(top = 48.dp, start = 20.dp)
-                        .size(48.dp)
-                        .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.9f))
+                        .statusBarsPadding()
+                        .padding(top = 10.dp, start = 16.dp)
+                        .size(44.dp)
                         .shadow(4.dp, CircleShape)
+                        .background(Color.White, CircleShape)
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
