@@ -1,0 +1,48 @@
+# Built application files
+*.apk
+*.aar
+*.ap_
+*.aab
+*.dex
+
+# Files for the ART/Dalvik VM
+*.class
+
+# Java files
+*.log
+
+# Android Studio / IntelliJ IDEA
+.idea/
+*.iml
+.gradle/
+
+# Keystore / Signing files
+*.jks
+*.keystore
+*.p12
+*.key
+
+# Local configuration file (contains private keys & SDK paths like MAPTILER_API_KEY)
+local.properties
+
+# Build outputs
+build/
+**/build/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# OS / Editor temporary files
+.DS_Store
+Thumbs.db
+*.swp
+*~
+*.orig
+
+# ProGuard / R8 outputs
+mapping.txt
+seeds.txt
+usage.txt
+dump.txt
+configuration.txt
+

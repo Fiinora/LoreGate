@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "485081162455",
+    "project_id": "lore-gate",
+    "storage_bucket": "lore-gate.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:485081162455:android:0f3cb7f1ed540e1d124692",
+        "android_client_info": {
+          "package_name": "com.loregate.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCXmgZ46si1UL73ZSKDeMsB9bnwxt8dRP0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
