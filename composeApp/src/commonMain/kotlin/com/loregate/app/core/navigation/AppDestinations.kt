@@ -9,10 +9,16 @@ data object LoginRoute
 data object HomeRoute
 
 @Serializable
-data class MapRoute(val targetSiteId: String? = null)
+data class MapRoute(
+    val targetSiteId: String? = null,
+    val initialTrailId: String? = null
+)
 
 @Serializable
 data object ProfileRoute
+
+@Serializable
+data object PassportRoute
 
 @Serializable
 data object StoryListRoute

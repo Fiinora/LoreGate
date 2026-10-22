@@ -1,6 +1,8 @@
 package com.loregate.app.feature.map
 
 import com.loregate.app.domain.model.GeoPoint
+import com.loregate.app.domain.model.HeritageStamp
+import com.loregate.app.domain.model.HeritageTrail
 import com.loregate.app.domain.model.HistoricalSite
 import com.loregate.app.domain.model.Spear
 import com.loregate.app.domain.usecase.SiteUnlockStatus
@@ -18,6 +20,7 @@ data class MapUiState(
     val isLoading: Boolean = true,
     val isSeedingData: Boolean = false,
     val errorMessage: String? = null,
+    val isOfflineFallback: Boolean = false,
     val allSites: List<HistoricalSite> = emptyList(),
     val visibleSites: List<HistoricalSite> = emptyList(),
     val unlockedSiteIds: Set<String> = emptySet(),
@@ -35,7 +38,11 @@ data class MapUiState(
     val routePoints: List<GeoPoint> = emptyList(),
     val isRouteLoading: Boolean = false,
     val is25DMode: Boolean = true,
-    val cameraTilt: Double = 50.0
+    val cameraTilt: Double = 50.0,
+    val activeTrail: HeritageTrail? = null,
+    val availableTrails: List<HeritageTrail> = emptyList(),
+    val showTrailSelector: Boolean = false,
+    val unlockedStampCelebration: HeritageStamp? = null
 ) {
     val selectedSite: HistoricalSite?
         get() = (selection as? MapSelection.SiteSelected)?.site
@@ -51,6 +58,10 @@ sealed interface MapUiEvent {
     data object OnLocationPermissionGranted : MapUiEvent
     data object OnBackgroundLocationPermissionGranted : MapUiEvent
     data class OnFocusTargetSite(val targetSiteId: String) : MapUiEvent
+    data class OnActivateTrail(val trailId: String) : MapUiEvent
+    data object OnExitTrail : MapUiEvent
+    data class OnToggleTrailSelector(val show: Boolean) : MapUiEvent
+    data object OnDismissStampCelebration : MapUiEvent
     data object OnRetryFetchSites : MapUiEvent
     data object OnSeedInitialDataClicked : MapUiEvent
     data class OnSiteMarkerClicked(val siteId: String) : MapUiEvent

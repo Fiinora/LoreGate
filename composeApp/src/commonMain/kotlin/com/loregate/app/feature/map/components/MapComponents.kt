@@ -10,6 +10,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -48,6 +49,7 @@ import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.ViewInAr
 import androidx.compose.material3.AssistChip
@@ -57,10 +59,17 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
+import coil3.compose.AsyncImage
+import com.loregate.app.domain.model.HeritageStamp
+import com.loregate.app.domain.model.HeritageTrail
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -314,7 +323,8 @@ fun BoxScope.MapFloatingControlButtons(
     onToggle25DMode: () -> Unit,
     onZoomIn: () -> Unit,
     onZoomOut: () -> Unit,
-    onMyLocationClick: () -> Unit
+    onMyLocationClick: () -> Unit,
+    onToggleTrailSelector: () -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -324,6 +334,24 @@ fun BoxScope.MapFloatingControlButtons(
         verticalArrangement = Arrangement.spacedBy(10.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        // Tombol Daftar Jalur Wisata
+        Surface(
+            onClick = onToggleTrailSelector,
+            shape = CircleShape,
+            color = Color.White,
+            shadowElevation = 6.dp,
+            modifier = Modifier.size(46.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = Icons.Default.Route,
+                    contentDescription = "Pilih Jalur Wisata",
+                    tint = OrangePrimary,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+        }
+
         // Toggle Mode 2.5D / 3D Tilt
         Surface(
             onClick = onToggle25DMode,
@@ -841,3 +869,344 @@ private fun difficultyLabel(difficulty: String): String = when (difficulty.upper
     "MEDIUM" -> "Medium"
     else -> "Easy"
 }
+
+@Composable
+fun BoxScope.MapActiveTrailHudCard(
+    activeTrail: HeritageTrail,
+    onExitTrail: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .align(Alignment.TopCenter)
+            .statusBarsPadding()
+            .padding(top = 68.dp, start = 16.dp, end = 16.dp)
+            .fillMaxWidth()
+            .zIndex(14f),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B).copy(alpha = 0.95f)),
+        elevation = CardDefaults.cardElevation(8.dp),
+        border = BorderStroke(1.dp, Color(activeTrail.themeColorHex).copy(alpha = 0.6f))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    shape = CircleShape,
+                    color = Color(activeTrail.themeColorHex).copy(alpha = 0.2f),
+                    border = BorderStroke(1.dp, Color(activeTrail.themeColorHex)),
+                    modifier = Modifier.size(38.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.Route,
+                            contentDescription = null,
+                            tint = Color(activeTrail.themeColorHex),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "JALUR AKTIF",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(activeTrail.themeColorHex),
+                            letterSpacing = 1.sp
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "• ${activeTrail.siteIds.size} Situs",
+                            fontSize = 10.sp,
+                            color = Color(0xFF94A3B8)
+                        )
+                    }
+                    Text(
+                        text = activeTrail.title,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        fontSize = 14.sp
+                    )
+                }
+            }
+
+            Surface(
+                onClick = onExitTrail,
+                shape = CircleShape,
+                color = Color.White.copy(alpha = 0.15f),
+                modifier = Modifier.size(32.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Keluar Jalur",
+                        tint = Color.White,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun HeritageTrailSelectorBottomSheet(
+    trails: List<HeritageTrail>,
+    onSelectTrail: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = Color.White,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 36.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "Pilih Jalur Wisata Sejarah",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        color = Color(0xFF1E293B)
+                    )
+                    Text(
+                        text = "Navigasi otomatis menghubungkan situs berurutan",
+                        fontSize = 12.sp,
+                        color = Color.Gray
+                    )
+                }
+                IconButton(onClick = onDismiss) {
+                    Icon(imageVector = Icons.Default.Close, contentDescription = "Tutup", tint = Color.Gray)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                trails.forEach { trail ->
+                    Card(
+                        onClick = { onSelectTrail(trail.id) },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC)),
+                        border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Surface(
+                                        color = Color(trail.themeColorHex).copy(alpha = 0.15f),
+                                        shape = RoundedCornerShape(6.dp)
+                                    ) {
+                                        Text(
+                                            text = trail.badgeLabel,
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(trail.themeColorHex),
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "${trail.siteIds.size} Situs • ${trail.estimatedMinutes / 60} Jam",
+                                        fontSize = 11.sp,
+                                        color = Color.Gray
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(4.dp))
+
+                                Text(
+                                    text = trail.title,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp,
+                                    color = Color(0xFF1E293B)
+                                )
+                                Text(
+                                    text = trail.description,
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF64748B),
+                                    maxLines = 2
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.width(10.dp))
+
+                            Button(
+                                onClick = { onSelectTrail(trail.id) },
+                                colors = ButtonDefaults.buttonColors(containerColor = OrangePrimary),
+                                shape = RoundedCornerShape(10.dp),
+                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+                            ) {
+                                Text("Mulai", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun StampCelebrationDialog(
+    stamp: HeritageStamp?,
+    onDismiss: () -> Unit
+) {
+    if (stamp == null) return
+
+    val inkColor = Color(stamp.inkHexColor)
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth(0.88f)
+                .padding(16.dp),
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFFFAF6EE)), // Parchment
+            elevation = CardDefaults.cardElevation(12.dp),
+            border = BorderStroke(2.dp, inkColor)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "🎉 STEMPEL BARU DICAP!",
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 14.sp,
+                    letterSpacing = 1.sp,
+                    color = inkColor
+                )
+
+                Spacer(modifier = Modifier.height(18.dp))
+
+                // Inked Stamp Seal Effect
+                Box(
+                    modifier = Modifier
+                        .size(110.dp)
+                        .background(inkColor.copy(alpha = 0.08f), CircleShape)
+                        .border(BorderStroke(3.dp, inkColor), CircleShape)
+                        .padding(6.dp)
+                        .border(BorderStroke(1.5.dp, inkColor.copy(alpha = 0.6f)), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(text = stamp.sealEmoji, fontSize = 52.sp)
+                }
+
+                Spacer(modifier = Modifier.height(18.dp))
+
+                Text(
+                    text = stamp.culturalTitle,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 17.sp,
+                    color = inkColor,
+                    textAlign = TextAlign.Center
+                )
+
+                Text(
+                    text = "Tercatat di Paspor Budaya atas kunjungan ke ${stamp.siteName}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFF4A4A4A),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = inkColor.copy(alpha = 0.08f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "\"${stamp.historicalQuote}\"",
+                        fontSize = 12.sp,
+                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                        color = inkColor,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(12.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                Button(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = inkColor),
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(vertical = 12.dp)
+                ) {
+                    Text("Buka Babak Cerita", fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun BoxScope.MapOfflineStatusChip() {
+    Surface(
+        modifier = Modifier
+            .align(Alignment.TopCenter)
+            .statusBarsPadding()
+            .padding(top = 68.dp)
+            .zIndex(9f),
+        shape = RoundedCornerShape(16.dp),
+        color = Color(0xFF1E293B).copy(alpha = 0.9f),
+        border = BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.5f))
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .background(Color(0xFFF59E0B), CircleShape)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = "Mode Offline Aktif (Data Tersimpan)",
+                color = Color.White,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium
+            )
+        }
+    }
+}
+

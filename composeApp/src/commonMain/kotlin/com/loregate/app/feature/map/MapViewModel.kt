@@ -8,6 +8,8 @@ import com.loregate.app.domain.model.GeoPoint
 import com.loregate.app.domain.model.HistoricalSite
 import com.loregate.app.domain.model.Spear
 import com.loregate.app.domain.repository.AuthRepository
+import com.loregate.app.domain.repository.HeritageTrailRepository
+import com.loregate.app.domain.repository.PassportRepository
 import com.loregate.app.domain.repository.RouteRepository
 import com.loregate.app.domain.repository.SiteRepository
 import com.loregate.app.domain.repository.SpearRepository
@@ -29,6 +31,8 @@ class MapViewModel(
     private val siteRepository: SiteRepository,
     private val spearRepository: SpearRepository,
     private val routeRepository: RouteRepository,
+    private val heritageTrailRepository: HeritageTrailRepository,
+    private val passportRepository: PassportRepository,
     private val locationTracker: LocationTracker,
     private val geofenceManager: GeofenceManager,
     private val evaluateSiteUnlockStateUseCase: EvaluateSiteUnlockStateUseCase
@@ -43,11 +47,13 @@ class MapViewModel(
     private var locationJob: Job? = null
     private var hasCenteredOnce = false
     private var pendingTargetSiteId: String? = null
+    private var pendingInitialTrailId: String? = null
 
     init {
         fetchHistoricalSites()
         observeRealtimeSpears()
         refreshUserSpearCount()
+        loadAvailableTrails()
     }
 
     fun onEvent(event: MapUiEvent) {
@@ -60,6 +66,12 @@ class MapViewModel(
                 pendingTargetSiteId = event.targetSiteId
                 tryFocusPendingTargetSite()
             }
+            is MapUiEvent.OnActivateTrail -> activateTrail(event.trailId)
+            MapUiEvent.OnExitTrail -> exitTrail()
+            is MapUiEvent.OnToggleTrailSelector -> {
+                _uiState.update { it.copy(showTrailSelector = event.show) }
+            }
+            MapUiEvent.OnDismissStampCelebration -> handleDismissStampCelebration()
             MapUiEvent.OnRetryFetchSites -> fetchHistoricalSites()
             MapUiEvent.OnSeedInitialDataClicked -> seedInitialFirestoreData()
             is MapUiEvent.OnSiteMarkerClicked -> selectSiteById(event.siteId)
@@ -79,6 +91,74 @@ class MapViewModel(
             MapUiEvent.OnMyLocationClicked -> centerOnUserLocation()
             MapUiEvent.OnProfileClicked -> sendEffect(MapUiEffect.NavigateToProfile)
             MapUiEvent.OnBackClicked -> sendEffect(MapUiEffect.NavigateBack)
+        }
+    }
+
+    fun setInitialTrail(trailId: String?) {
+        if (!trailId.isNullOrBlank()) {
+            pendingInitialTrailId = trailId
+            if (_uiState.value.allSites.isNotEmpty()) {
+                activateTrail(trailId)
+            }
+        }
+    }
+
+    private fun loadAvailableTrails() {
+        viewModelScope.launch {
+            heritageTrailRepository.getHeritageTrails().onSuccess { trails ->
+                _uiState.update { it.copy(availableTrails = trails) }
+                pendingInitialTrailId?.let { trailId ->
+                    activateTrail(trailId)
+                    pendingInitialTrailId = null
+                }
+            }
+        }
+    }
+
+    private fun activateTrail(trailId: String) {
+        viewModelScope.launch {
+            val trail = _uiState.value.availableTrails.find { it.id == trailId }
+                ?: heritageTrailRepository.getTrailById(trailId).getOrNull()
+                ?: return@launch
+
+            _uiState.update {
+                it.copy(
+                    activeTrail = trail,
+                    showTrailSelector = false,
+                    isRouteLoading = true
+                )
+            }
+
+            heritageTrailRepository.calculateTrailFullRoute(trail, _uiState.value.allSites)
+                .onSuccess { points ->
+                    _uiState.update { it.copy(routePoints = points, isRouteLoading = false) }
+                }
+                .onFailure {
+                    _uiState.update { it.copy(isRouteLoading = false) }
+                }
+
+            val firstSite = _uiState.value.allSites.find { it.id == trail.siteIds.firstOrNull() }
+            if (firstSite != null) {
+                sendEffect(
+                    MapUiEffect.AnimateCamera(
+                        target = firstSite.geoPoint,
+                        zoom = 15.0,
+                        tilt = 35.0,
+                        bearing = 0.0,
+                        durationMs = 1200
+                    )
+                )
+            }
+        }
+    }
+
+    private fun exitTrail() {
+        _uiState.update {
+            it.copy(
+                activeTrail = null,
+                routePoints = emptyList(),
+                showTrailSelector = false
+            )
         }
     }
 
@@ -135,7 +215,7 @@ class MapViewModel(
                     durationMs = 1000
                 )
             )
-        } else if (state.is25DMode && state.selection is MapSelection.None) {
+        } else if (state.is25DMode && state.selection is MapSelection.None && state.activeTrail == null) {
             sendEffect(
                 MapUiEffect.MoveCameraTracking(
                     target = location,
@@ -168,12 +248,17 @@ class MapViewModel(
                         current.copy(
                             isLoading = false,
                             errorMessage = null,
+                            isOfflineFallback = false,
                             allSites = sites,
                             visibleSites = visibleSites,
                             unlockedSiteIds = unlockedIds
                         )
                     }
                     tryFocusPendingTargetSite()
+                    pendingInitialTrailId?.let {
+                        activateTrail(it)
+                        pendingInitialTrailId = null
+                    }
                 },
                 onFailure = { error ->
                     _uiState.update {
@@ -350,7 +435,22 @@ class MapViewModel(
                     selectedSiteUnlockStatus = updatedStatus
                 )
             }
-            sendEffect(MapUiEffect.NavigateToChapterDetail(siteId))
+
+            // Check if there is a matching heritage stamp to celebrate!
+            val stamp = passportRepository.getStampBySiteId(siteId, isUnlocked = true)
+            if (stamp != null) {
+                _uiState.update { it.copy(unlockedStampCelebration = stamp) }
+            } else {
+                sendEffect(MapUiEffect.NavigateToChapterDetail(siteId))
+            }
+        }
+    }
+
+    private fun handleDismissStampCelebration() {
+        val pendingSiteId = _uiState.value.unlockedStampCelebration?.siteId
+        _uiState.update { it.copy(unlockedStampCelebration = null) }
+        if (pendingSiteId != null) {
+            sendEffect(MapUiEffect.NavigateToChapterDetail(pendingSiteId))
         }
     }
 

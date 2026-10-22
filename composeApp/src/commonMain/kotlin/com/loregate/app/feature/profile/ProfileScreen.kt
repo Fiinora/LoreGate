@@ -81,6 +81,7 @@ data class ProfileUiState(
 
 sealed interface ProfileUiEvent {
     data object OnBackClicked : ProfileUiEvent
+    data object OnPassportClicked : ProfileUiEvent
     data object OnStoryProgressClicked : ProfileUiEvent
     data object OnTravelHistoryClicked : ProfileUiEvent
     data object OnRequestLogout : ProfileUiEvent
@@ -90,6 +91,7 @@ sealed interface ProfileUiEvent {
 
 sealed interface ProfileUiEffect {
     data object NavigateBack : ProfileUiEffect
+    data object NavigateToPassport : ProfileUiEffect
     data object NavigateToStoryProgress : ProfileUiEffect
     data object NavigateToStoryList : ProfileUiEffect
     data object NavigateToLogin : ProfileUiEffect
@@ -133,6 +135,7 @@ class ProfileViewModel(
         viewModelScope.launch {
             when (event) {
                 ProfileUiEvent.OnBackClicked -> _uiEffect.send(ProfileUiEffect.NavigateBack)
+                ProfileUiEvent.OnPassportClicked -> _uiEffect.send(ProfileUiEffect.NavigateToPassport)
                 ProfileUiEvent.OnStoryProgressClicked -> _uiEffect.send(ProfileUiEffect.NavigateToStoryProgress)
                 ProfileUiEvent.OnTravelHistoryClicked -> _uiEffect.send(ProfileUiEffect.NavigateToStoryList)
                 ProfileUiEvent.OnRequestLogout -> showLogoutDialog.value = true
@@ -150,6 +153,7 @@ class ProfileViewModel(
 @Composable
 fun ProfileRoute(
     onNavigateBack: () -> Unit,
+    onNavigateToPassport: () -> Unit,
     onNavigateToStoryProgress: () -> Unit,
     onNavigateToStoryList: () -> Unit,
     onNavigateToLogin: () -> Unit,
@@ -161,6 +165,7 @@ fun ProfileRoute(
         viewModel.uiEffect.collect { effect ->
             when (effect) {
                 ProfileUiEffect.NavigateBack -> onNavigateBack()
+                ProfileUiEffect.NavigateToPassport -> onNavigateToPassport()
                 ProfileUiEffect.NavigateToStoryProgress -> onNavigateToStoryProgress()
                 ProfileUiEffect.NavigateToStoryList -> onNavigateToStoryList()
                 ProfileUiEffect.NavigateToLogin -> onNavigateToLogin()
@@ -268,7 +273,17 @@ fun ProfileScreen(
                 StatBadge(label = "Chapter Selesai", value = "${uiState.unlockedChaptersCount}")
             }
 
-            Spacer(modifier = Modifier.height(48.dp))
+            Spacer(modifier = Modifier.height(36.dp))
+
+            ProfileMenuCard(
+                title = "Paspor Jelajah Budaya",
+                subtitle = "Koleksi stempel resmi dari situs sejarah",
+                icon = Icons.Default.History,
+                iconTint = OrangePrimary,
+                onClick = { onEvent(ProfileUiEvent.OnPassportClicked) }
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
 
             ProfileMenuCard(
                 title = "Progress Cerita",

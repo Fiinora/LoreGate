@@ -1,5 +1,7 @@
 package com.loregate.app.di
 
+import com.loregate.app.data.repository.DefaultHeritageTrailRepository
+import com.loregate.app.data.repository.DefaultPassportRepository
 import com.loregate.app.data.repository.FirebaseAuthRepository
 import com.loregate.app.data.repository.FirestoreSiteRepository
 import com.loregate.app.data.repository.FirestoreSpearRepository
@@ -7,6 +9,8 @@ import com.loregate.app.data.repository.FirestoreUserRepository
 import com.loregate.app.data.repository.OsrmRouteRepository
 import com.loregate.app.data.seeder.FirestoreDataSeeder
 import com.loregate.app.domain.repository.AuthRepository
+import com.loregate.app.domain.repository.HeritageTrailRepository
+import com.loregate.app.domain.repository.PassportRepository
 import com.loregate.app.domain.repository.RouteRepository
 import com.loregate.app.domain.repository.SiteRepository
 import com.loregate.app.domain.repository.SpearRepository
@@ -17,6 +21,7 @@ import com.loregate.app.domain.usecase.GetStoryTimelineUseCase
 import com.loregate.app.feature.auth.LoginViewModel
 import com.loregate.app.feature.home.HomeViewModel
 import com.loregate.app.feature.map.MapViewModel
+import com.loregate.app.feature.passport.PassportViewModel
 import com.loregate.app.feature.profile.ProfileViewModel
 import com.loregate.app.feature.story.ChapterDetailViewModel
 import com.loregate.app.feature.story.GameChapterViewModel
@@ -45,11 +50,14 @@ val commonModule = module {
     single<SiteRepository> { FirestoreSiteRepository(get(), get()) }
     single<SpearRepository> { FirestoreSpearRepository(get()) }
     single<RouteRepository> { OsrmRouteRepository() }
+    single<PassportRepository> { DefaultPassportRepository(get(), get()) }
+    single<HeritageTrailRepository> { DefaultHeritageTrailRepository(get()) }
 
     // ViewModels
     viewModelOf(::HomeViewModel)
     viewModelOf(::LoginViewModel)
     viewModelOf(::MapViewModel)
+    viewModelOf(::PassportViewModel)
     viewModelOf(::ProfileViewModel)
     viewModelOf(::StoryListViewModel)
     viewModelOf(::ChapterDetailViewModel)

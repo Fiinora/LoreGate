@@ -33,18 +33,23 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.loregate.app.core.designsystem.OrangePrimary
+import com.loregate.app.feature.map.components.HeritageTrailSelectorBottomSheet
+import com.loregate.app.feature.map.components.MapActiveTrailHudCard
 import com.loregate.app.feature.map.components.MapFloatingControlButtons
+import com.loregate.app.feature.map.components.MapOfflineStatusChip
 import com.loregate.app.feature.map.components.MapSelectedSiteBannerCard
 import com.loregate.app.feature.map.components.MapTopHudOverlay
 import com.loregate.app.feature.map.components.SiteDetailBottomSheet
 import com.loregate.app.feature.map.components.SpearCollectionDialog
 import com.loregate.app.feature.map.components.SpearFocusedCard
+import com.loregate.app.feature.map.components.StampCelebrationDialog
 import kotlinx.coroutines.flow.Flow
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
 fun MapRoute(
     targetSiteId: String? = null,
+    initialTrailId: String? = null,
     onNavigateBack: () -> Unit,
     onNavigateToProfile: () -> Unit,
     onNavigateToChapterDetail: (String) -> Unit,
@@ -55,6 +60,12 @@ fun MapRoute(
     LaunchedEffect(targetSiteId) {
         if (!targetSiteId.isNullOrBlank()) {
             viewModel.onEvent(MapUiEvent.OnFocusTargetSite(targetSiteId))
+        }
+    }
+
+    LaunchedEffect(initialTrailId) {
+        if (!initialTrailId.isNullOrBlank()) {
+            viewModel.setInitialTrail(initialTrailId)
         }
     }
 
@@ -140,7 +151,7 @@ fun MapScreen(
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = uiState.errorMessage ?: "",
+                            text = uiState.errorMessage,
                             fontSize = 14.sp,
                             color = Color.Gray
                         )
@@ -176,6 +187,17 @@ fun MapScreen(
                     onBackClick = { onEvent(MapUiEvent.OnBackClicked) },
                     onProfileClick = { onEvent(MapUiEvent.OnProfileClicked) }
                 )
+
+                if (uiState.isOfflineFallback) {
+                    MapOfflineStatusChip()
+                }
+
+                if (uiState.activeTrail != null) {
+                    MapActiveTrailHudCard(
+                        activeTrail = uiState.activeTrail,
+                        onExitTrail = { onEvent(MapUiEvent.OnExitTrail) }
+                    )
+                }
 
                 if (uiState.showTopMarkerCard && uiState.selectedSite != null) {
                     MapSelectedSiteBannerCard(
@@ -253,7 +275,8 @@ fun MapScreen(
                     onToggle25DMode = { onEvent(MapUiEvent.OnToggle25DModeClicked) },
                     onZoomIn = { onEvent(MapUiEvent.OnZoomInClicked) },
                     onZoomOut = { onEvent(MapUiEvent.OnZoomOutClicked) },
-                    onMyLocationClick = { onEvent(MapUiEvent.OnMyLocationClicked) }
+                    onMyLocationClick = { onEvent(MapUiEvent.OnMyLocationClicked) },
+                    onToggleTrailSelector = { onEvent(MapUiEvent.OnToggleTrailSelector(true)) }
                 )
 
                 when (val selection = uiState.selection) {
@@ -293,6 +316,21 @@ fun MapScreen(
                 SpearCollectionDialog(
                     spear = uiState.collectedSpearPopup,
                     onDismiss = { onEvent(MapUiEvent.OnDismissCollectionPopup) }
+                )
+
+                if (uiState.showTrailSelector) {
+                    HeritageTrailSelectorBottomSheet(
+                        trails = uiState.availableTrails,
+                        onSelectTrail = { trailId ->
+                            onEvent(MapUiEvent.OnActivateTrail(trailId))
+                        },
+                        onDismiss = { onEvent(MapUiEvent.OnToggleTrailSelector(false)) }
+                    )
+                }
+
+                StampCelebrationDialog(
+                    stamp = uiState.unlockedStampCelebration,
+                    onDismiss = { onEvent(MapUiEvent.OnDismissStampCelebration) }
                 )
             }
         }

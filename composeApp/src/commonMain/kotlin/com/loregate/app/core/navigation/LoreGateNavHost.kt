@@ -9,6 +9,7 @@ import androidx.navigation.toRoute
 import com.loregate.app.feature.auth.LoginRoute
 import com.loregate.app.feature.home.HomeRoute
 import com.loregate.app.feature.map.MapRoute
+import com.loregate.app.feature.passport.PassportRoute
 import com.loregate.app.feature.profile.ProfileRoute
 import com.loregate.app.feature.story.ChapterDetailRoute
 import com.loregate.app.feature.story.GameChapterRoute
@@ -40,13 +41,27 @@ fun LoreGateNavHost(
             HomeRoute(
                 onNavigateToStoryList = { navController.navigate(StoryListRoute) },
                 onNavigateToMap = { navController.navigate(MapRoute()) },
-                onNavigateToProfile = { navController.navigate(ProfileRoute) }
+                onNavigateToProfile = { navController.navigate(ProfileRoute) },
+                onNavigateToPassport = { navController.navigate(PassportRoute) },
+                onNavigateToMapWithTrail = { trailId ->
+                    navController.navigate(MapRoute(initialTrailId = trailId))
+                }
+            )
+        }
+
+        composable<PassportRoute> {
+            PassportRoute(
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToMapWithSite = { siteId ->
+                    navController.navigate(MapRoute(targetSiteId = siteId))
+                }
             )
         }
 
         composable<ProfileRoute> {
             ProfileRoute(
                 onNavigateBack = { navController.popBackStack() },
+                onNavigateToPassport = { navController.navigate(PassportRoute) },
                 onNavigateToStoryProgress = { navController.navigate(StoryProgressRoute) },
                 onNavigateToStoryList = { navController.navigate(StoryListRoute) },
                 onNavigateToLogin = {
@@ -79,6 +94,7 @@ fun LoreGateNavHost(
             val route = backStackEntry.toRoute<MapRoute>()
             MapRoute(
                 targetSiteId = route.targetSiteId,
+                initialTrailId = route.initialTrailId,
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToProfile = { navController.navigate(ProfileRoute) },
                 onNavigateToChapterDetail = { siteId ->

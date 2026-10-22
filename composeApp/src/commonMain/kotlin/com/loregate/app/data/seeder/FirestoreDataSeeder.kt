@@ -84,6 +84,11 @@ class FirestoreDataSeeder(
         batch.commit()
     }
 
+    fun getBundledFallbackSites(): List<HistoricalSite> = buildInitialSites(null)
+
+    fun getBundledFallbackChapter(siteId: String): ChapterContent? =
+        buildInitialChapters(buildInitialSites(null))[siteId]
+
     private fun buildInitialSites(userLocation: GeoPoint?): List<HistoricalSite> {
         val baseSites = mutableListOf(
             HistoricalSite(
