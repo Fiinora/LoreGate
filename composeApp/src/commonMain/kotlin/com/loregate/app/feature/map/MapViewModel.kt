@@ -206,15 +206,18 @@ class MapViewModel(
         val state = _uiState.value
         if (!hasCenteredOnce) {
             hasCenteredOnce = true
-            sendEffect(
-                MapUiEffect.AnimateCamera(
-                    target = location,
-                    zoom = 18.0,
-                    tilt = if (state.is25DMode) state.cameraTilt else 0.0,
-                    bearing = 0.0,
-                    durationMs = 1000
+            // If user opened map with a target site, don't override camera to user's location
+            if (pendingTargetSiteId == null && state.selectedSite == null) {
+                sendEffect(
+                    MapUiEffect.AnimateCamera(
+                        target = location,
+                        zoom = 18.0,
+                        tilt = if (state.is25DMode) state.cameraTilt else 0.0,
+                        bearing = 0.0,
+                        durationMs = 1000
+                    )
                 )
-            )
+            }
         } else if (state.is25DMode && state.selection is MapSelection.None && state.activeTrail == null) {
             sendEffect(
                 MapUiEffect.MoveCameraTracking(

@@ -40,6 +40,7 @@ actual fun PlatformMapView(
 ) {
     val context = LocalContext.current
     var mapLibreMap by remember { mutableStateOf<MapLibreMap?>(null) }
+    var hasAppliedInitialTargetFocus by remember { mutableStateOf(false) }
 
     val infiniteTransition = rememberInfiniteTransition(label = "RadarTransition")
     val radarRadius by infiniteTransition.animateFloat(
@@ -115,6 +116,21 @@ actual fun PlatformMapView(
                 }
                 else -> Unit
             }
+        }
+    }
+
+    LaunchedEffect(mapLibreMap, uiState.selectedSite?.id) {
+        val map = mapLibreMap ?: return@LaunchedEffect
+        val selectedSite = uiState.selectedSite
+        if (selectedSite != null && !hasAppliedInitialTargetFocus) {
+            hasAppliedInitialTargetFocus = true
+            map.animateCamera(
+                CameraUpdateFactory.newLatLngZoom(
+                    LatLng(selectedSite.latitude, selectedSite.longitude),
+                    17.0
+                ),
+                1200
+            )
         }
     }
 
