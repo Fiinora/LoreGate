@@ -739,27 +739,67 @@ class MapViewModel(
             _uiState.update { it.copy(isSavingCommunitySpot = true) }
             val result = communitySpotRepository.createCommunitySpot(spot, imageBytes)
             result.onSuccess { createdSpot ->
+                _uiState.update { current ->
+                    val updatedAll = current.allCommunitySpots.filter { it.id != createdSpot.id } + createdSpot
+                    val isVisibleInFilter = current.selectedCategoryFilter == null || current.selectedCategoryFilter == createdSpot.category
+                    val updatedVisible = if (isVisibleInFilter) {
+                        current.visibleCommunitySpots.filter { it.id != createdSpot.id } + createdSpot
+                    } else {
+                        current.visibleCommunitySpots
+                    }
+
+                    current.copy(
+                        isSavingCommunitySpot = false,
+                        isAddingCommunitySpot = false,
+                        draftSpotCoordinate = null,
+                        draftTargetSiteId = null,
+                        allCommunitySpots = updatedAll,
+                        visibleCommunitySpots = updatedVisible,
+                        selection = MapSelection.CommunitySpotSelected(createdSpot),
+                        statusToast = "Temuan berhasil dibagikan! (+30 XP)"
+                    )
+                }
+                sendEffect(MapUiEffect.ShowToast("Temuan berhasil dibagikan! (+30 XP)"))
+                sendEffect(
+                    MapUiEffect.AnimateCamera(
+                        target = createdSpot.geoPoint,
+                        zoom = 18.0,
+                        tilt = _uiState.value.cameraTilt,
+                        bearing = 0.0,
+                        durationMs = 800
+                    )
+                )
+                clearStatusToastAfterDelay()
+            }.onFailure { error ->
+                val errorMsg = error.message ?: error.toString()
+                println("submitCommunitySpot failed: $errorMsg")
+                val msg = if (errorMsg.contains("Cloudinary", ignoreCase = true)) {
+                    errorMsg
+                } else if (errorMsg.contains("PERMISSION_DENIED", ignoreCase = true) || errorMsg.contains("permission", ignoreCase = true)) {
+                    "Gagal simpan ke Firestore: Izin ditolak (cek Firestore Security Rules)."
+                } else {
+                    "Gagal mempublikasikan: $errorMsg"
+                }
+
                 _uiState.update {
                     it.copy(
                         isSavingCommunitySpot = false,
                         isAddingCommunitySpot = false,
                         draftSpotCoordinate = null,
-                        draftTargetSiteId = null
+                        draftTargetSiteId = null,
+                        statusToast = msg
                     )
                 }
-                sendEffect(MapUiEffect.ShowToast("Temuan berhasil dibagikan! +30 XP"))
-                selectCommunitySpotById(createdSpot.id)
-            }.onFailure {
-                _uiState.update {
-                    it.copy(
-                        isSavingCommunitySpot = false,
-                        isAddingCommunitySpot = false,
-                        draftSpotCoordinate = null,
-                        draftTargetSiteId = null
-                    )
-                }
-                sendEffect(MapUiEffect.ShowToast("Disimpan ke draf lokal. Akan diunggah saat koneksi tersedia."))
+                sendEffect(MapUiEffect.ShowToast(msg))
+                clearStatusToastAfterDelay()
             }
+        }
+    }
+
+    private fun clearStatusToastAfterDelay() {
+        viewModelScope.launch {
+            kotlinx.coroutines.delay(4500)
+            _uiState.update { it.copy(statusToast = null) }
         }
     }
 

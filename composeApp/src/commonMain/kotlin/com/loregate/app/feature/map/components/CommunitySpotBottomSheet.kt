@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -81,13 +82,14 @@ fun BoxScope.CommunitySpotBottomSheet(
         modifier = Modifier
             .align(Alignment.BottomCenter)
             .fillMaxWidth()
+            .heightIn(max = 580.dp)
             .background(
-                color = DarkSurfaceBrown.copy(alpha = 0.96f),
+                color = DarkSurfaceBrown.copy(alpha = 0.98f),
                 shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
             )
             .navigationBarsPadding()
             .padding(horizontal = 16.dp)
-            .zIndex(3f)
+            .zIndex(25f)
     ) {
         // Drag handle & close button
         Box(
@@ -107,13 +109,13 @@ fun BoxScope.CommunitySpotBottomSheet(
                 onClick = onDismiss,
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
-                    .size(32.dp)
+                    .size(44.dp)
             ) {
                 Icon(
                     imageVector = Icons.Default.Close,
                     contentDescription = "Tutup",
-                    tint = Color.White.copy(alpha = 0.7f),
-                    modifier = Modifier.size(20.dp)
+                    tint = Color.White.copy(alpha = 0.8f),
+                    modifier = Modifier.size(22.dp)
                 )
             }
         }

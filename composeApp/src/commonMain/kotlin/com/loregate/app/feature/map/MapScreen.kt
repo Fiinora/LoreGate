@@ -1,22 +1,34 @@
 package com.loregate.app.feature.map
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Refresh
@@ -26,6 +38,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -193,98 +207,150 @@ fun MapScreen(
                     onEvent = onEvent
                 )
 
-                MapTopHudOverlay(
-                    showBackButton = true,
-                    collectedSpearCount = uiState.collectedSpearCount,
-                    spearTotalCount = uiState.spearTotalCount,
-                    availableSpearCount = uiState.availableSpears.size,
-                    nearbySpearCount = uiState.displaySpears.size,
-                    unlockedSitesCount = uiState.unlockedSiteIds.size,
-                    totalSitesCount = uiState.allSites.size,
-                    onBackClick = { onEvent(MapUiEvent.OnBackClicked) },
-                    onProfileClick = { onEvent(MapUiEvent.OnProfileClicked) }
-                )
-
-                // Category Filter Chips Bar
-                Row(
+                // 1. Top HUD & Overlays in a single cohesive Column
+                Column(
                     modifier = Modifier
                         .align(Alignment.TopCenter)
-                        .statusBarsPadding()
-                        .padding(top = 64.dp)
                         .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp, vertical = 6.dp)
-                        .zIndex(10f),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        .statusBarsPadding()
+                        .zIndex(15f)
                 ) {
-                    val isAllSelected = uiState.selectedCategoryFilter == null
-                    Surface(
-                        onClick = { onEvent(MapUiEvent.OnCategoryFilterClicked(null)) },
-                        shape = RoundedCornerShape(20.dp),
-                        color = if (isAllSelected) OrangePrimary else Color(0xFF1E293B).copy(alpha = 0.85f),
-                        border = BorderStroke(1.dp, if (isAllSelected) OrangePrimary else Color.White.copy(alpha = 0.2f))
-                    ) {
-                        Text(
-                            text = "Semua",
-                            color = Color.White,
-                            fontSize = 12.sp,
-                            fontWeight = if (isAllSelected) FontWeight.Bold else FontWeight.Normal,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                    MapTopHudOverlay(
+                        showBackButton = true,
+                        collectedSpearCount = uiState.collectedSpearCount,
+                        spearTotalCount = uiState.spearTotalCount,
+                        availableSpearCount = uiState.availableSpears.size,
+                        nearbySpearCount = uiState.displaySpears.size,
+                        unlockedSitesCount = uiState.unlockedSiteIds.size,
+                        totalSitesCount = uiState.allSites.size,
+                        onBackClick = { onEvent(MapUiEvent.OnBackClicked) },
+                        onProfileClick = { onEvent(MapUiEvent.OnProfileClicked) }
+                    )
+
+                    if (uiState.activeTrail != null) {
+                        MapActiveTrailHudCard(
+                            activeTrail = uiState.activeTrail,
+                            onExitTrail = { onEvent(MapUiEvent.OnExitTrail) }
                         )
                     }
 
-                    CommunitySpotCategory.entries.forEach { cat ->
-                        val isSelected = uiState.selectedCategoryFilter == cat
-                        val catColor = runCatching { Color(android.graphics.Color.parseColor(cat.hexColor)) }
-                            .getOrElse { OrangePrimary }
-
-                        Surface(
-                            onClick = { onEvent(MapUiEvent.OnCategoryFilterClicked(if (isSelected) null else cat)) },
-                            shape = RoundedCornerShape(20.dp),
-                            color = if (isSelected) catColor else Color(0xFF1E293B).copy(alpha = 0.85f),
-                            border = BorderStroke(1.dp, if (isSelected) catColor else Color.White.copy(alpha = 0.2f))
+                    val statusToast = uiState.statusToast
+                    if (statusToast != null) {
+                        val isError = statusToast.contains("Gagal", ignoreCase = true) || statusToast.contains("error", ignoreCase = true)
+                        Card(
+                            modifier = Modifier
+                                .padding(horizontal = 16.dp, vertical = 4.dp)
+                                .fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (isError) Color(0xFFEF4444) else OrangePrimary
+                            ),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(text = cat.emoji, fontSize = 12.sp)
-                                Spacer(modifier = Modifier.width(4.dp))
+                                Icon(
+                                    imageVector = if (isError) Icons.Default.Warning else Icons.Default.Place,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
                                 Text(
-                                    text = cat.displayLabel,
+                                    text = statusToast,
                                     color = Color.White,
-                                    fontSize = 11.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp
                                 )
                             }
                         }
                     }
-                }
 
-                if (uiState.isOfflineFallback) {
-                    MapOfflineStatusChip()
-                }
+                    if (uiState.isOfflineFallback) {
+                        MapOfflineStatusChip(
+                            modifier = Modifier
+                                .padding(horizontal = 16.dp, vertical = 4.dp)
+                                .align(Alignment.CenterHorizontally)
+                        )
+                    }
 
-                if (uiState.activeTrail != null) {
-                    MapActiveTrailHudCard(
-                        activeTrail = uiState.activeTrail,
-                        onExitTrail = { onEvent(MapUiEvent.OnExitTrail) }
-                    )
-                }
+                    // Category Filter Chips Bar
+                    LazyRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        item {
+                            val isAllSelected = uiState.selectedCategoryFilter == null
+                            Surface(
+                                onClick = { onEvent(MapUiEvent.OnCategoryFilterClicked(null)) },
+                                shape = RoundedCornerShape(20.dp),
+                                color = if (isAllSelected) OrangePrimary else Color(0xFF1E293B).copy(alpha = 0.88f),
+                                shadowElevation = if (isAllSelected) 4.dp else 2.dp,
+                                border = BorderStroke(
+                                    1.dp,
+                                    if (isAllSelected) OrangePrimary else Color.White.copy(alpha = 0.15f)
+                                ),
+                                modifier = Modifier.height(34.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier.padding(horizontal = 14.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "Semua",
+                                        color = Color.White,
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isAllSelected) FontWeight.Bold else FontWeight.Medium
+                                    )
+                                }
+                            }
+                        }
 
-                if (uiState.showTopMarkerCard && uiState.selectedSite != null) {
-                    MapSelectedSiteBannerCard(
-                        site = uiState.selectedSite!!,
-                        onDismiss = { onEvent(MapUiEvent.OnDismissSiteSelection) }
-                    )
+                        items(CommunitySpotCategory.entries) { cat ->
+                            val isSelected = uiState.selectedCategoryFilter == cat
+                            val catColor = runCatching { Color(android.graphics.Color.parseColor(cat.hexColor)) }
+                                .getOrElse { OrangePrimary }
+
+                            Surface(
+                                onClick = { onEvent(MapUiEvent.OnCategoryFilterClicked(if (isSelected) null else cat)) },
+                                shape = RoundedCornerShape(20.dp),
+                                color = if (isSelected) catColor else Color(0xFF1E293B).copy(alpha = 0.88f),
+                                shadowElevation = if (isSelected) 4.dp else 2.dp,
+                                border = BorderStroke(
+                                    1.dp,
+                                    if (isSelected) catColor else Color.White.copy(alpha = 0.15f)
+                                ),
+                                modifier = Modifier.height(34.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(text = cat.emoji, fontSize = 13.sp)
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = cat.displayLabel,
+                                        color = Color.White,
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
 
                 if (uiState.allSites.isEmpty()) {
                     Card(
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
-                            .padding(horizontal = 20.dp, vertical = 28.dp)
-                            .fillMaxWidth(),
+                            .navigationBarsPadding()
+                            .padding(start = 20.dp, end = 20.dp, bottom = 28.dp)
+                            .fillMaxWidth()
+                            .zIndex(10f),
                         shape = RoundedCornerShape(20.dp),
                         colors = CardDefaults.cardColors(
                             containerColor = Color(0xFF1E293B).copy(alpha = 0.94f)
@@ -343,20 +409,75 @@ fun MapScreen(
                     }
                 }
 
-                MapFloatingControlButtons(
-                    is25DMode = uiState.is25DMode,
-                    onToggle25DMode = { onEvent(MapUiEvent.OnToggle25DModeClicked) },
-                    onZoomIn = { onEvent(MapUiEvent.OnZoomInClicked) },
-                    onZoomOut = { onEvent(MapUiEvent.OnZoomOutClicked) },
-                    onMyLocationClick = { onEvent(MapUiEvent.OnMyLocationClicked) },
-                    onToggleTrailSelector = { onEvent(MapUiEvent.OnToggleTrailSelector(true)) },
-                    onAddSpotClick = { onEvent(MapUiEvent.OnStartAddSpot()) }
-                )
+                val isAnySheetOpen = uiState.selection != MapSelection.None ||
+                    uiState.isAddingCommunitySpot ||
+                    uiState.showTrailSelector ||
+                    uiState.collectedSpearPopup != null ||
+                    uiState.unlockedStampCelebration != null
 
+                // Floating Action Controls & FAB (Ergonomic bottom-right vertical alignment)
+                AnimatedVisibility(
+                    visible = !isAnySheetOpen,
+                    enter = fadeIn(tween(180)) + scaleIn(tween(180), initialScale = 0.85f),
+                    exit = fadeOut(tween(120)) + scaleOut(tween(120), targetScale = 0.85f),
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .navigationBarsPadding()
+                        .padding(end = 16.dp, bottom = 20.dp)
+                        .zIndex(10f)
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.End,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        MapFloatingControlButtons(
+                            is25DMode = uiState.is25DMode,
+                            onToggle25DMode = { onEvent(MapUiEvent.OnToggle25DModeClicked) },
+                            onZoomIn = { onEvent(MapUiEvent.OnZoomInClicked) },
+                            onZoomOut = { onEvent(MapUiEvent.OnZoomOutClicked) },
+                            onMyLocationClick = { onEvent(MapUiEvent.OnMyLocationClicked) },
+                            onToggleTrailSelector = { onEvent(MapUiEvent.OnToggleTrailSelector(true)) }
+                        )
+
+                        if (uiState.allSites.isNotEmpty()) {
+                            ExtendedFloatingActionButton(
+                                onClick = { onEvent(MapUiEvent.OnStartAddSpot()) },
+                                containerColor = OrangePrimary,
+                                contentColor = Color.White,
+                                shape = RoundedCornerShape(20.dp),
+                                elevation = FloatingActionButtonDefaults.elevation(
+                                    defaultElevation = 6.dp,
+                                    pressedElevation = 2.dp
+                                )
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = "Bagikan Temuan",
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Bagikan Temuan",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Modal Selection Sheets with Clickable Scrim to dismiss
                 when (val selection = uiState.selection) {
                     is MapSelection.SiteSelected -> {
                         val status = uiState.selectedSiteUnlockStatus
                         if (status != null) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Color.Black.copy(alpha = 0.45f))
+                                    .clickable { onEvent(MapUiEvent.OnDismissSiteSelection) }
+                                    .zIndex(20f)
+                            )
                             SiteDetailBottomSheet(
                                 site = selection.site,
                                 unlockStatus = status,
@@ -370,11 +491,21 @@ fun MapScreen(
                                 },
                                 onAddTipClick = {
                                     onEvent(MapUiEvent.OnAddTipForSiteClicked(selection.site.id))
+                                },
+                                onDismiss = {
+                                    onEvent(MapUiEvent.OnDismissSiteSelection)
                                 }
                             )
                         }
                     }
                     is MapSelection.SpearSelected -> {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color.Black.copy(alpha = 0.45f))
+                                .clickable { onEvent(MapUiEvent.OnDismissSpearSelection) }
+                                .zIndex(20f)
+                        )
                         SpearFocusedCard(
                             spear = selection.spear,
                             distanceMeters = uiState.focusedSpearDistanceMeters,
@@ -388,6 +519,13 @@ fun MapScreen(
                         )
                     }
                     is MapSelection.CommunitySpotSelected -> {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color.Black.copy(alpha = 0.45f))
+                                .clickable { onEvent(MapUiEvent.OnDismissCommunitySpotSelection) }
+                                .zIndex(20f)
+                        )
                         CommunitySpotBottomSheet(
                             spot = selection.spot,
                             currentUserId = uiState.currentUserId,

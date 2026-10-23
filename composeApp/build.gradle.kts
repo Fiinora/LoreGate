@@ -68,8 +68,9 @@ kotlin {
             implementation(libs.ktor.client.content.negotiation)
             implementation(libs.ktor.serialization.json)
 
-            // Serialization & Coroutines
+            // Serialization & Coroutines & Datetime
             implementation(libs.kotlinx.serialization.json)
+            implementation(libs.kotlinx.datetime)
         }
 
         androidMain.dependencies {
@@ -132,6 +133,12 @@ android {
 
         val mapTilerApiKey = localProperties.getProperty("MAPTILER_API_KEY", "")
         buildConfigField("String", "MAPTILER_API_KEY", "\"$mapTilerApiKey\"")
+
+        val cloudinaryCloudName = localProperties.getProperty("CLOUDINARY_CLOUD_NAME", "")
+        buildConfigField("String", "CLOUDINARY_CLOUD_NAME", "\"$cloudinaryCloudName\"")
+
+        val cloudinaryUploadPreset = localProperties.getProperty("CLOUDINARY_UPLOAD_PRESET", "")
+        buildConfigField("String", "CLOUDINARY_UPLOAD_PRESET", "\"$cloudinaryUploadPreset\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

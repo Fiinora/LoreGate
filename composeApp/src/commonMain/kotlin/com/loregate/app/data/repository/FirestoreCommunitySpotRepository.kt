@@ -1,15 +1,17 @@
 package com.loregate.app.data.repository
 
 import com.loregate.app.domain.model.CommunitySpot
+import com.loregate.app.domain.model.CommunitySpotCategory
 import com.loregate.app.domain.repository.CommunitySpotRepository
 import com.loregate.app.domain.repository.UserRepository
+import com.loregate.app.domain.service.MediaStorageService
+import dev.gitlive.firebase.firestore.DocumentSnapshot
 import dev.gitlive.firebase.firestore.FieldValue
 import dev.gitlive.firebase.firestore.FirebaseFirestore
-import dev.gitlive.firebase.storage.Data
-import dev.gitlive.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
+import kotlinx.datetime.Clock
 import kotlin.random.Random
 
 data class PendingCommunityDraft(
@@ -19,7 +21,7 @@ data class PendingCommunityDraft(
 
 class FirestoreCommunitySpotRepository(
     private val firestore: FirebaseFirestore,
-    private val storage: FirebaseStorage,
+    private val mediaStorageService: MediaStorageService,
     private val userRepository: UserRepository
 ) : CommunitySpotRepository {
 
@@ -30,17 +32,18 @@ class FirestoreCommunitySpotRepository(
         spotsCollection.snapshots
             .map { snapshot ->
                 snapshot.documents.mapNotNull { doc ->
-                    runCatching { doc.data<CommunitySpot>() }.getOrNull()
+                    parseSpotDocument(doc)
                 }
             }
-            .catch {
+            .catch { error ->
+                println("observeCommunitySpots error: ${error.message}")
                 emit(emptyList())
             }
 
     override suspend fun getCommunitySpots(): Result<List<CommunitySpot>> = runCatching {
         val snapshot = spotsCollection.get()
         snapshot.documents.mapNotNull { doc ->
-            runCatching { doc.data<CommunitySpot>() }.getOrNull()
+            parseSpotDocument(doc)
         }
     }
 
@@ -50,7 +53,7 @@ class FirestoreCommunitySpotRepository(
                 .where { "targetSiteId" equalTo siteId }
                 .get()
             snapshot.documents.mapNotNull { doc ->
-                runCatching { doc.data<CommunitySpot>() }.getOrNull()
+                parseSpotDocument(doc)
             }
         }
 
@@ -64,11 +67,13 @@ class FirestoreCommunitySpotRepository(
 
         try {
             if (imageBytes != null && imageBytes.isNotEmpty()) {
-                val imagePath = "community_spots/${spot.authorId}/$spotId.jpg"
-                val storageRef = storage.reference(imagePath)
-                storageRef.putData(Data(imageBytes))
-                uploadedImageUrl = storageRef.getDownloadUrl()
-                uploadedThumbnailUrl = uploadedImageUrl
+                val uploadResult = mediaStorageService.uploadImage(
+                    bytes = imageBytes,
+                    folder = "community_spots",
+                    fileName = "$spotId.jpg"
+                ).getOrThrow()
+                uploadedImageUrl = uploadResult.url
+                uploadedThumbnailUrl = uploadResult.thumbnailUrl
             }
 
             val finalSpot = spot.copy(
@@ -79,16 +84,20 @@ class FirestoreCommunitySpotRepository(
                 updatedAt = currentTimeMillis()
             )
 
-            spotsCollection.document(spotId).set(finalSpot)
+            // Save using clean map serialization to avoid dynamic reflection/serializer issues
+            spotsCollection.document(spotId).set(finalSpot.toMap())
+            println("CommunitySpot successfully written to Firestore with id: $spotId")
 
             // Reward author with 30 XP for contribution
             if (finalSpot.authorId.isNotBlank()) {
-                userRepository.addExperiencePoints(finalSpot.authorId, 30)
+                runCatching {
+                    userRepository.addExperiencePoints(finalSpot.authorId, 30)
+                }
             }
 
             finalSpot
         } catch (e: Exception) {
-            // If offline, queue to pending drafts for background resilience
+            println("createCommunitySpot error: ${e.message}")
             pendingDrafts.add(PendingCommunityDraft(spot.copy(id = spotId), imageBytes))
             throw e
         }
@@ -96,17 +105,16 @@ class FirestoreCommunitySpotRepository(
 
     override suspend fun updateCommunitySpot(spot: CommunitySpot): Result<Unit> = runCatching {
         val updatedSpot = spot.copy(updatedAt = currentTimeMillis())
-        spotsCollection.document(spot.id).set(updatedSpot)
+        spotsCollection.document(spot.id).set(updatedSpot.toMap())
     }
 
     override suspend fun deleteCommunitySpot(spotId: String): Result<Unit> = runCatching {
         val doc = spotsCollection.document(spotId).get()
         if (doc.exists) {
-            val spot = runCatching { doc.data<CommunitySpot>() }.getOrNull()
-            if (spot != null && spot.imageUrl.isNotBlank() && spot.authorId.isNotBlank()) {
+            val spot = parseSpotDocument(doc)
+            if (spot != null && spot.imageUrl.isNotBlank()) {
                 runCatching {
-                    val storageRef = storage.reference("community_spots/${spot.authorId}/$spotId.jpg")
-                    storageRef.delete()
+                    mediaStorageService.deleteImage(spot.imageUrl)
                 }
             }
         }
@@ -117,7 +125,7 @@ class FirestoreCommunitySpotRepository(
         val doc = spotsCollection.document(spotId).get()
         if (!doc.exists) return@runCatching false
 
-        val spot = doc.data<CommunitySpot>()
+        val spot = parseSpotDocument(doc) ?: return@runCatching false
         val hasLiked = spot.helpfulUserIds.contains(userId)
 
         if (hasLiked) {
@@ -129,9 +137,10 @@ class FirestoreCommunitySpotRepository(
             spotsCollection.document(spotId).update(
                 "helpfulUserIds" to FieldValue.arrayUnion(userId)
             )
-            // Reward author with +5 XP for helpful tip
             if (spot.authorId.isNotBlank() && spot.authorId != userId) {
-                userRepository.addExperiencePoints(spot.authorId, 5)
+                runCatching {
+                    userRepository.addExperiencePoints(spot.authorId, 5)
+                }
             }
             true
         }
@@ -145,7 +154,7 @@ class FirestoreCommunitySpotRepository(
         val doc = spotsCollection.document(spotId).get()
         if (!doc.exists) return@runCatching
 
-        val spot = doc.data<CommunitySpot>()
+        val spot = parseSpotDocument(doc) ?: return@runCatching
         if (spot.reportedByUserIds.contains(userId)) return@runCatching
 
         val newReportCount = spot.reportCount + 1
@@ -174,6 +183,78 @@ class FirestoreCommunitySpotRepository(
         syncedCount
     }
 
+    private fun parseSpotDocument(doc: DocumentSnapshot): CommunitySpot? {
+        return runCatching {
+            doc.data<CommunitySpot>()
+        }.getOrElse {
+            runCatching {
+                val id: String = doc.get("id")
+                val title: String = doc.get("title")
+                val description: String = doc.get("description")
+                val categoryStr: String = doc.get("category")
+                val latitude: Double = doc.get("latitude")
+                val longitude: Double = doc.get("longitude")
+                val targetSiteId: String? = runCatching { doc.get<String?>("targetSiteId") }.getOrNull()
+                val imageUrl: String = runCatching { doc.get<String>("imageUrl") }.getOrElse { "" }
+                val thumbnailUrl: String = runCatching { doc.get<String>("thumbnailUrl") }.getOrElse { imageUrl }
+                val authorId: String = runCatching { doc.get<String>("authorId") }.getOrElse { "" }
+                val authorName: String = runCatching { doc.get<String>("authorName") }.getOrElse { "Pengelana" }
+                val authorAvatarUrl: String? = runCatching { doc.get<String?>("authorAvatarUrl") }.getOrNull()
+                val helpfulUserIds: List<String> = runCatching { doc.get<List<String>>("helpfulUserIds") }.getOrElse { emptyList() }
+                val reportCount: Int = runCatching { (doc.get<Number>("reportCount")).toInt() }.getOrElse { 0 }
+                val reportedByUserIds: List<String> = runCatching { doc.get<List<String>>("reportedByUserIds") }.getOrElse { emptyList() }
+                val isVerifiedOnSite: Boolean = runCatching { doc.get<Boolean>("isVerifiedOnSite") }.getOrElse { false }
+                val isAutoHidden: Boolean = runCatching { doc.get<Boolean>("isAutoHidden") }.getOrElse { false }
+                val createdAt: Long = runCatching { (doc.get<Number>("createdAt")).toLong() }.getOrElse { 0L }
+                val updatedAt: Long = runCatching { (doc.get<Number>("updatedAt")).toLong() }.getOrElse { 0L }
+
+                CommunitySpot(
+                    id = id,
+                    title = title,
+                    description = description,
+                    category = CommunitySpotCategory.fromString(categoryStr),
+                    latitude = latitude,
+                    longitude = longitude,
+                    targetSiteId = targetSiteId,
+                    imageUrl = imageUrl,
+                    thumbnailUrl = thumbnailUrl,
+                    authorId = authorId,
+                    authorName = authorName,
+                    authorAvatarUrl = authorAvatarUrl,
+                    helpfulUserIds = helpfulUserIds,
+                    reportCount = reportCount,
+                    reportedByUserIds = reportedByUserIds,
+                    isVerifiedOnSite = isVerifiedOnSite,
+                    isAutoHidden = isAutoHidden,
+                    createdAt = createdAt,
+                    updatedAt = updatedAt
+                )
+            }.getOrNull()
+        }
+    }
+
+    private fun CommunitySpot.toMap(): Map<String, Any?> = mapOf(
+        "id" to id,
+        "title" to title,
+        "description" to description,
+        "category" to category.name,
+        "latitude" to latitude,
+        "longitude" to longitude,
+        "targetSiteId" to targetSiteId,
+        "imageUrl" to imageUrl,
+        "thumbnailUrl" to thumbnailUrl,
+        "authorId" to authorId,
+        "authorName" to authorName,
+        "authorAvatarUrl" to authorAvatarUrl,
+        "helpfulUserIds" to helpfulUserIds,
+        "reportCount" to reportCount,
+        "reportedByUserIds" to reportedByUserIds,
+        "isVerifiedOnSite" to isVerifiedOnSite,
+        "isAutoHidden" to isAutoHidden,
+        "createdAt" to createdAt,
+        "updatedAt" to updatedAt
+    )
+
     private fun generateSpotId(): String {
         val timestamp = currentTimeMillis()
         val randomSuffix = Random.nextInt(1000, 9999)
@@ -181,6 +262,6 @@ class FirestoreCommunitySpotRepository(
     }
 
     private fun currentTimeMillis(): Long {
-        return kotlin.time.TimeSource.Monotonic.markNow().elapsedNow().inWholeMilliseconds + 1729000000000L
+        return Clock.System.now().toEpochMilliseconds()
     }
 }

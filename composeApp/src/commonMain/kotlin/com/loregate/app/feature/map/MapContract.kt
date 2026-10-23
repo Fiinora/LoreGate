@@ -42,6 +42,7 @@ data class MapUiState(
     val draftSpotCoordinate: GeoPoint? = null,
     val draftTargetSiteId: String? = null,
     val isSavingCommunitySpot: Boolean = false,
+    val statusToast: String? = null,
     val currentUserId: String? = null,
     val currentUserName: String? = null,
     val selection: MapSelection = MapSelection.None,

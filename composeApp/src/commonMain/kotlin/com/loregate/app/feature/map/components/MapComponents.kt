@@ -26,6 +26,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -98,7 +101,7 @@ import com.loregate.app.domain.model.Spear
 import com.loregate.app.domain.usecase.SiteUnlockStatus
 
 @Composable
-fun BoxScope.MapTopHudOverlay(
+fun MapTopHudOverlay(
     showBackButton: Boolean,
     collectedSpearCount: Int,
     spearTotalCount: Int,
@@ -107,15 +110,13 @@ fun BoxScope.MapTopHudOverlay(
     unlockedSitesCount: Int,
     totalSitesCount: Int,
     onBackClick: () -> Unit,
-    onProfileClick: () -> Unit
+    onProfileClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Row(
-        modifier = Modifier
-            .align(Alignment.TopCenter)
+        modifier = modifier
             .fillMaxWidth()
-            .statusBarsPadding()
-            .padding(horizontal = 16.dp, vertical = 10.dp)
-            .zIndex(10f),
+            .padding(horizontal = 16.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
@@ -184,6 +185,13 @@ fun BoxScope.MapTopHudOverlay(
                                 color = Color(0xFF4ADE80),
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.SemiBold
+                            )
+                        } else {
+                            Text(
+                                text = "Jelajahi sekitar",
+                                color = Color(0xFF94A3B8),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Medium
                             )
                         }
                     }
@@ -318,41 +326,20 @@ fun BoxScope.MapSelectedSiteBannerCard(
 }
 
 @Composable
-fun BoxScope.MapFloatingControlButtons(
+fun MapFloatingControlButtons(
     is25DMode: Boolean,
     onToggle25DMode: () -> Unit,
     onZoomIn: () -> Unit,
     onZoomOut: () -> Unit,
     onMyLocationClick: () -> Unit,
     onToggleTrailSelector: () -> Unit = {},
-    onAddSpotClick: () -> Unit = {}
+    modifier: Modifier = Modifier
 ) {
     Column(
-        modifier = Modifier
-            .align(Alignment.CenterEnd)
-            .padding(end = 16.dp)
-            .zIndex(5f),
+        modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(10.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Tombol Tambah Spot Baru (UGC)
-        Surface(
-            onClick = onAddSpotClick,
-            shape = CircleShape,
-            color = OrangePrimary,
-            shadowElevation = 8.dp,
-            modifier = Modifier.size(48.dp)
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = "Tambah Temuan",
-                    tint = Color.White,
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-        }
-
         // Tombol Daftar Jalur Wisata
         Surface(
             onClick = onToggleTrailSelector,
@@ -384,24 +371,6 @@ fun BoxScope.MapFloatingControlButtons(
                     imageVector = if (is25DMode) Icons.Default.ViewInAr else Icons.Default.Map,
                     contentDescription = "Mode 2.5D",
                     tint = if (is25DMode) Color.White else DarkSurfaceBrown,
-                    modifier = Modifier.size(22.dp)
-                )
-            }
-        }
-
-        // Tombol My Location (Pusatkan ke User)
-        Surface(
-            onClick = onMyLocationClick,
-            shape = CircleShape,
-            color = Color.White,
-            shadowElevation = 6.dp,
-            modifier = Modifier.size(46.dp)
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    imageVector = Icons.Default.MyLocation,
-                    contentDescription = "Lokasi Saya",
-                    tint = DarkSurfaceBrown,
                     modifier = Modifier.size(22.dp)
                 )
             }
@@ -450,6 +419,24 @@ fun BoxScope.MapFloatingControlButtons(
                 }
             }
         }
+
+        // Tombol My Location (Pusatkan ke User - Posisi paling bawah dekat jempol)
+        Surface(
+            onClick = onMyLocationClick,
+            shape = CircleShape,
+            color = Color.White,
+            shadowElevation = 6.dp,
+            modifier = Modifier.size(46.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = Icons.Default.MyLocation,
+                    contentDescription = "Lokasi Saya",
+                    tint = DarkSurfaceBrown,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+        }
     }
 }
 
@@ -461,7 +448,8 @@ fun BoxScope.SiteDetailBottomSheet(
     isRouteLoading: Boolean,
     onPrimaryActionClick: () -> Unit,
     onGetDirectionsClick: () -> Unit,
-    onAddTipClick: () -> Unit = {}
+    onAddTipClick: () -> Unit = {},
+    onDismiss: () -> Unit = {}
 ) {
     val distanceMeters = userLocation?.distanceToMeters(site.geoPoint)
     val isInRange = distanceMeters != null && distanceMeters <= site.radius
@@ -473,18 +461,19 @@ fun BoxScope.SiteDetailBottomSheet(
         modifier = Modifier
             .align(Alignment.BottomCenter)
             .fillMaxWidth()
+            .heightIn(max = 580.dp)
             .background(
-                color = DarkSurfaceBrown.copy(alpha = 0.9f),
+                color = DarkSurfaceBrown.copy(alpha = 0.98f),
                 shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
             )
             .navigationBarsPadding()
             .padding(horizontal = 16.dp)
-            .zIndex(2f)
+            .zIndex(25f)
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(20.dp),
+                .padding(top = 10.dp, bottom = 4.dp),
             contentAlignment = Alignment.Center
         ) {
             Box(
@@ -494,9 +483,26 @@ fun BoxScope.SiteDetailBottomSheet(
                     .clip(RoundedCornerShape(2.dp))
                     .background(Color.White.copy(alpha = 0.3f))
             )
+            IconButton(
+                onClick = onDismiss,
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .size(44.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "Tutup",
+                    tint = Color.White.copy(alpha = 0.8f),
+                    modifier = Modifier.size(22.dp)
+                )
+            }
         }
 
-        Column(modifier = Modifier.padding(bottom = 16.dp)) {
+        Column(
+            modifier = Modifier
+                .verticalScroll(rememberScrollState())
+                .padding(bottom = 16.dp)
+        ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(bottom = 12.dp)
@@ -519,10 +525,10 @@ fun BoxScope.SiteDetailBottomSheet(
 
                 Spacer(modifier = Modifier.width(12.dp))
 
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = site.nama,
-                        fontSize = 24.sp,
+                        fontSize = 22.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White,
                         letterSpacing = (-0.5).sp
@@ -674,7 +680,7 @@ fun BoxScope.SpearFocusedCard(
             .padding(bottom = 20.dp, start = 12.dp, end = 12.dp)
             .fillMaxWidth(0.9f)
             .scale(pulseScale)
-            .zIndex(3f),
+            .zIndex(25f),
         colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
         shape = RoundedCornerShape(16.dp),
         border = BorderStroke(1.dp, difficultyColor(spear.difficulty).copy(alpha = 0.5f))
@@ -917,17 +923,15 @@ private fun difficultyLabel(difficulty: String): String = when (difficulty.upper
 }
 
 @Composable
-fun BoxScope.MapActiveTrailHudCard(
+fun MapActiveTrailHudCard(
     activeTrail: HeritageTrail,
-    onExitTrail: () -> Unit
+    onExitTrail: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Card(
-        modifier = Modifier
-            .align(Alignment.TopCenter)
-            .statusBarsPadding()
-            .padding(top = 68.dp, start = 16.dp, end = 16.dp)
-            .fillMaxWidth()
-            .zIndex(14f),
+        modifier = modifier
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B).copy(alpha = 0.95f)),
         elevation = CardDefaults.cardElevation(8.dp),
@@ -1225,13 +1229,9 @@ fun StampCelebrationDialog(
 }
 
 @Composable
-fun BoxScope.MapOfflineStatusChip() {
+fun MapOfflineStatusChip(modifier: Modifier = Modifier) {
     Surface(
-        modifier = Modifier
-            .align(Alignment.TopCenter)
-            .statusBarsPadding()
-            .padding(top = 68.dp)
-            .zIndex(9f),
+        modifier = modifier,
         shape = RoundedCornerShape(16.dp),
         color = Color(0xFF1E293B).copy(alpha = 0.9f),
         border = BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.5f))

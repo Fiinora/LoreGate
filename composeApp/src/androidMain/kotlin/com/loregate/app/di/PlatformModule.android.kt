@@ -6,11 +6,18 @@ import com.loregate.app.core.location.AndroidLocationTracker
 import com.loregate.app.core.location.GeofenceManager
 import com.loregate.app.core.location.LocationTracker
 import com.loregate.app.core.location.MovementDetector
+import com.loregate.app.data.service.MediaStorageConfig
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.module.Module
 import org.koin.dsl.module
 
 actual fun platformModule(): Module = module {
+    single {
+        MediaStorageConfig(
+            cloudName = com.loregate.app.BuildConfig.CLOUDINARY_CLOUD_NAME,
+            uploadPreset = com.loregate.app.BuildConfig.CLOUDINARY_UPLOAD_PRESET
+        )
+    }
     single { LocationServices.getFusedLocationProviderClient(androidContext()) }
     single { LocationServices.getGeofencingClient(androidContext()) }
     single { MovementDetector() }
