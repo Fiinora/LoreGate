@@ -1,14 +1,20 @@
 package com.loregate.app.feature.map
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CloudUpload
@@ -21,18 +27,26 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.loregate.app.core.designsystem.OrangePrimary
+import com.loregate.app.domain.model.CommunitySpotCategory
+import com.loregate.app.feature.map.components.AddCommunitySpotBottomSheet
+import com.loregate.app.feature.map.components.CommunitySpotBottomSheet
 import com.loregate.app.feature.map.components.HeritageTrailSelectorBottomSheet
 import com.loregate.app.feature.map.components.MapActiveTrailHudCard
 import com.loregate.app.feature.map.components.MapFloatingControlButtons
@@ -93,12 +107,15 @@ fun MapScreen(
     onNavigateToProfile: () -> Unit,
     onNavigateToChapterDetail: (String) -> Unit
 ) {
+    val snackbarHostState = remember { SnackbarHostState() }
+
     LaunchedEffect(Unit) {
         uiEffectFlow.collect { effect ->
             when (effect) {
                 is MapUiEffect.NavigateToChapterDetail -> onNavigateToChapterDetail(effect.siteId)
                 MapUiEffect.NavigateToProfile -> onNavigateToProfile()
                 MapUiEffect.NavigateBack -> onNavigateBack()
+                is MapUiEffect.ShowToast -> snackbarHostState.showSnackbar(effect.message)
                 else -> Unit
             }
         }
@@ -188,6 +205,62 @@ fun MapScreen(
                     onProfileClick = { onEvent(MapUiEvent.OnProfileClicked) }
                 )
 
+                // Category Filter Chips Bar
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .statusBarsPadding()
+                        .padding(top = 64.dp)
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp, vertical = 6.dp)
+                        .zIndex(10f),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val isAllSelected = uiState.selectedCategoryFilter == null
+                    Surface(
+                        onClick = { onEvent(MapUiEvent.OnCategoryFilterClicked(null)) },
+                        shape = RoundedCornerShape(20.dp),
+                        color = if (isAllSelected) OrangePrimary else Color(0xFF1E293B).copy(alpha = 0.85f),
+                        border = BorderStroke(1.dp, if (isAllSelected) OrangePrimary else Color.White.copy(alpha = 0.2f))
+                    ) {
+                        Text(
+                            text = "Semua",
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = if (isAllSelected) FontWeight.Bold else FontWeight.Normal,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                        )
+                    }
+
+                    CommunitySpotCategory.entries.forEach { cat ->
+                        val isSelected = uiState.selectedCategoryFilter == cat
+                        val catColor = runCatching { Color(android.graphics.Color.parseColor(cat.hexColor)) }
+                            .getOrElse { OrangePrimary }
+
+                        Surface(
+                            onClick = { onEvent(MapUiEvent.OnCategoryFilterClicked(if (isSelected) null else cat)) },
+                            shape = RoundedCornerShape(20.dp),
+                            color = if (isSelected) catColor else Color(0xFF1E293B).copy(alpha = 0.85f),
+                            border = BorderStroke(1.dp, if (isSelected) catColor else Color.White.copy(alpha = 0.2f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(text = cat.emoji, fontSize = 12.sp)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = cat.displayLabel,
+                                    color = Color.White,
+                                    fontSize = 11.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                )
+                            }
+                        }
+                    }
+                }
+
                 if (uiState.isOfflineFallback) {
                     MapOfflineStatusChip()
                 }
@@ -276,7 +349,8 @@ fun MapScreen(
                     onZoomIn = { onEvent(MapUiEvent.OnZoomInClicked) },
                     onZoomOut = { onEvent(MapUiEvent.OnZoomOutClicked) },
                     onMyLocationClick = { onEvent(MapUiEvent.OnMyLocationClicked) },
-                    onToggleTrailSelector = { onEvent(MapUiEvent.OnToggleTrailSelector(true)) }
+                    onToggleTrailSelector = { onEvent(MapUiEvent.OnToggleTrailSelector(true)) },
+                    onAddSpotClick = { onEvent(MapUiEvent.OnStartAddSpot()) }
                 )
 
                 when (val selection = uiState.selection) {
@@ -293,6 +367,9 @@ fun MapScreen(
                                 },
                                 onGetDirectionsClick = {
                                     onEvent(MapUiEvent.OnGetDirectionsClicked)
+                                },
+                                onAddTipClick = {
+                                    onEvent(MapUiEvent.OnAddTipForSiteClicked(selection.site.id))
                                 }
                             )
                         }
@@ -310,7 +387,46 @@ fun MapScreen(
                             }
                         )
                     }
+                    is MapSelection.CommunitySpotSelected -> {
+                        CommunitySpotBottomSheet(
+                            spot = selection.spot,
+                            currentUserId = uiState.currentUserId,
+                            userLocation = uiState.userLocation,
+                            isRouteLoading = uiState.isRouteLoading,
+                            onToggleHelpfulClick = {
+                                onEvent(MapUiEvent.OnToggleHelpfulClicked(selection.spot.id))
+                            },
+                            onGetDirectionsClick = {
+                                onEvent(MapUiEvent.OnGetDirectionsClicked)
+                            },
+                            onReportClick = { reason ->
+                                onEvent(MapUiEvent.OnReportSpotClicked(selection.spot.id, reason))
+                            },
+                            onDeleteClick = {
+                                onEvent(MapUiEvent.OnDeleteSpotClicked(selection.spot.id))
+                            },
+                            onDismiss = {
+                                onEvent(MapUiEvent.OnDismissCommunitySpotSelection)
+                            }
+                        )
+                    }
                     MapSelection.None -> Unit
+                }
+
+                if (uiState.isAddingCommunitySpot) {
+                    val targetSite = uiState.draftTargetSiteId?.let { id -> uiState.allSites.find { it.id == id } }
+                    AddCommunitySpotBottomSheet(
+                        draftCoordinate = uiState.draftSpotCoordinate,
+                        userLocation = uiState.userLocation,
+                        targetSiteName = targetSite?.nama,
+                        isSaving = uiState.isSavingCommunitySpot,
+                        onSubmit = { title, description, category, imageBytes ->
+                            onEvent(MapUiEvent.OnSubmitCommunitySpot(title, description, category, imageBytes))
+                        },
+                        onDismiss = {
+                            onEvent(MapUiEvent.OnDismissAddSpot)
+                        }
+                    )
                 }
 
                 SpearCollectionDialog(
@@ -331,6 +447,14 @@ fun MapScreen(
                 StampCelebrationDialog(
                     stamp = uiState.unlockedStampCelebration,
                     onDismiss = { onEvent(MapUiEvent.OnDismissStampCelebration) }
+                )
+
+                SnackbarHost(
+                    hostState = snackbarHostState,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 80.dp)
+                        .zIndex(20f)
                 )
             }
         }

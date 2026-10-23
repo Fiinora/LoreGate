@@ -172,6 +172,15 @@ actual fun PlatformMapView(
         }
     }
 
+    LaunchedEffect(mapLibreMap, uiState.visibleCommunitySpots, uiState.selectedCommunitySpot?.id) {
+        val map = mapLibreMap ?: return@LaunchedEffect
+        MapStyleRenderer.updateCommunitySpotsLayer(
+            map = map,
+            visibleSpots = uiState.visibleCommunitySpots,
+            selectedSpotId = uiState.selectedCommunitySpot?.id
+        )
+    }
+
     AndroidView(
         modifier = modifier,
         factory = { ctx ->
@@ -215,6 +224,34 @@ actual fun PlatformMapView(
                                     return@addOnMapClickListener true
                                 }
 
+                                val communitySpotFeatures = map.queryRenderedFeatures(
+                                    rect,
+                                    MapStyleRenderer.COMMUNITY_SPOTS_UNCLUSTERED_LAYER_ID
+                                )
+                                val spotId = communitySpotFeatures
+                                    .firstOrNull()
+                                    ?.getStringProperty("id")
+                                if (spotId != null) {
+                                    onEvent(MapUiEvent.OnCommunitySpotMarkerClicked(spotId))
+                                    return@addOnMapClickListener true
+                                }
+
+                                val clusterFeatures = map.queryRenderedFeatures(
+                                    rect,
+                                    MapStyleRenderer.COMMUNITY_SPOTS_CLUSTER_CIRCLE_LAYER_ID,
+                                    MapStyleRenderer.COMMUNITY_SPOTS_CLUSTER_COUNT_LAYER_ID
+                                )
+                                if (clusterFeatures.isNotEmpty()) {
+                                    map.animateCamera(
+                                        CameraUpdateFactory.newLatLngZoom(
+                                            latLng,
+                                            map.cameraPosition.zoom + 2.0
+                                        ),
+                                        500
+                                    )
+                                    return@addOnMapClickListener true
+                                }
+
                                 val siteFeatures = map.queryRenderedFeatures(
                                     pointF,
                                     MapStyleRenderer.SITES_LAYER_ID
@@ -229,6 +266,19 @@ actual fun PlatformMapView(
                                 } else {
                                     onEvent(MapUiEvent.OnMapEmptyClicked)
                                 }
+                                true
+                            }
+
+                            map.addOnMapLongClickListener { latLng ->
+                                onEvent(
+                                    MapUiEvent.OnStartAddSpot(
+                                        initialCoordinate = com.loregate.app.domain.model.GeoPoint(
+                                            latitude = latLng.latitude,
+                                            longitude = latLng.longitude
+                                        ),
+                                        targetSiteId = null
+                                    )
+                                )
                                 true
                             }
                         }

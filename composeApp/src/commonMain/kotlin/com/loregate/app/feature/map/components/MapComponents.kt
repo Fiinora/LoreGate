@@ -324,7 +324,8 @@ fun BoxScope.MapFloatingControlButtons(
     onZoomIn: () -> Unit,
     onZoomOut: () -> Unit,
     onMyLocationClick: () -> Unit,
-    onToggleTrailSelector: () -> Unit = {}
+    onToggleTrailSelector: () -> Unit = {},
+    onAddSpotClick: () -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -334,6 +335,24 @@ fun BoxScope.MapFloatingControlButtons(
         verticalArrangement = Arrangement.spacedBy(10.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        // Tombol Tambah Spot Baru (UGC)
+        Surface(
+            onClick = onAddSpotClick,
+            shape = CircleShape,
+            color = OrangePrimary,
+            shadowElevation = 8.dp,
+            modifier = Modifier.size(48.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Tambah Temuan",
+                    tint = Color.White,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+        }
+
         // Tombol Daftar Jalur Wisata
         Surface(
             onClick = onToggleTrailSelector,
@@ -441,7 +460,8 @@ fun BoxScope.SiteDetailBottomSheet(
     userLocation: GeoPoint?,
     isRouteLoading: Boolean,
     onPrimaryActionClick: () -> Unit,
-    onGetDirectionsClick: () -> Unit
+    onGetDirectionsClick: () -> Unit,
+    onAddTipClick: () -> Unit = {}
 ) {
     val distanceMeters = userLocation?.distanceToMeters(site.geoPoint)
     val isInRange = distanceMeters != null && distanceMeters <= site.radius
@@ -584,6 +604,32 @@ fun BoxScope.SiteDetailBottomSheet(
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Petunjuk Arah Rute", fontWeight = FontWeight.Bold)
                 }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            OutlinedButton(
+                onClick = onAddTipClick,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(44.dp),
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.25f)),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = null,
+                    tint = OrangePrimary,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    "Bagikan Tips / Cerita di Sini (+30 XP)",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White
+                )
             }
 
             if (distanceMeters != null) {

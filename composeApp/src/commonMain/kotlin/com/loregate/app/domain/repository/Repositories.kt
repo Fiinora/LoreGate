@@ -22,6 +22,7 @@ interface UserRepository {
     suspend fun getUserAppData(uid: String): Result<UserAppData?>
     suspend fun createOrUpdateUserProfile(user: AuthUser): Result<Unit>
     suspend fun unlockChapterAndVisitSite(uid: String, siteId: String): Result<Unit>
+    suspend fun addExperiencePoints(uid: String, xp: Int): Result<Unit>
 }
 
 interface SiteRepository {

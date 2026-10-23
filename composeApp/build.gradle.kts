@@ -57,6 +57,7 @@ kotlin {
             // GitLive Firebase
             implementation(libs.gitlive.firebase.auth)
             implementation(libs.gitlive.firebase.firestore)
+            implementation(libs.gitlive.firebase.storage)
 
             // Coil 3
             implementation(libs.coil3.compose)
@@ -81,6 +82,7 @@ kotlin {
             // Firebase Android SDK for GitLive runtime
             implementation(libs.firebase.auth.android)
             implementation(libs.firebase.firestore.android)
+            implementation(libs.firebase.storage.android)
             implementation(libs.firebase.common.android)
 
             // Koin Android

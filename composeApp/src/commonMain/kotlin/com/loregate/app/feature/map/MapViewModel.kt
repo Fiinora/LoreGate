@@ -4,10 +4,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.loregate.app.core.location.GeofenceManager
 import com.loregate.app.core.location.LocationTracker
+import com.loregate.app.domain.model.CommunitySpot
+import com.loregate.app.domain.model.CommunitySpotCategory
 import com.loregate.app.domain.model.GeoPoint
 import com.loregate.app.domain.model.HistoricalSite
 import com.loregate.app.domain.model.Spear
 import com.loregate.app.domain.repository.AuthRepository
+import com.loregate.app.domain.repository.CommunitySpotRepository
 import com.loregate.app.domain.repository.HeritageTrailRepository
 import com.loregate.app.domain.repository.PassportRepository
 import com.loregate.app.domain.repository.RouteRepository
@@ -30,6 +33,7 @@ class MapViewModel(
     private val userRepository: UserRepository,
     private val siteRepository: SiteRepository,
     private val spearRepository: SpearRepository,
+    private val communitySpotRepository: CommunitySpotRepository,
     private val routeRepository: RouteRepository,
     private val heritageTrailRepository: HeritageTrailRepository,
     private val passportRepository: PassportRepository,
@@ -50,8 +54,10 @@ class MapViewModel(
     private var pendingInitialTrailId: String? = null
 
     init {
+        observeAuthState()
         fetchHistoricalSites()
         observeRealtimeSpears()
+        observeRealtimeCommunitySpots()
         refreshUserSpearCount()
         loadAvailableTrails()
     }
@@ -76,6 +82,22 @@ class MapViewModel(
             MapUiEvent.OnSeedInitialDataClicked -> seedInitialFirestoreData()
             is MapUiEvent.OnSiteMarkerClicked -> selectSiteById(event.siteId)
             is MapUiEvent.OnSpearMarkerClicked -> selectSpearById(event.spearId)
+            is MapUiEvent.OnCommunitySpotMarkerClicked -> selectCommunitySpotById(event.spotId)
+            MapUiEvent.OnDismissCommunitySpotSelection -> clearSelection()
+            is MapUiEvent.OnCategoryFilterClicked -> setCategoryFilter(event.category)
+            is MapUiEvent.OnToggleHelpfulClicked -> toggleHelpful(event.spotId)
+            is MapUiEvent.OnReportSpotClicked -> reportSpot(event.spotId, event.reason)
+            is MapUiEvent.OnDeleteSpotClicked -> deleteSpot(event.spotId)
+            is MapUiEvent.OnStartAddSpot -> startAddSpot(event.initialCoordinate, event.targetSiteId)
+            MapUiEvent.OnDismissAddSpot -> dismissAddSpot()
+            is MapUiEvent.OnUpdateDraftCoordinate -> updateDraftCoordinate(event.coordinate)
+            is MapUiEvent.OnSubmitCommunitySpot -> submitCommunitySpot(
+                event.title,
+                event.description,
+                event.category,
+                event.imageBytes
+            )
+            is MapUiEvent.OnAddTipForSiteClicked -> startAddSpot(null, event.siteId)
             MapUiEvent.OnMapEmptyClicked -> clearSelection()
             MapUiEvent.OnDismissSiteSelection -> clearSelection()
             MapUiEvent.OnDismissSpearSelection -> clearSelection()
@@ -528,6 +550,214 @@ class MapViewModel(
                 durationMs = 1000
             )
         )
+    }
+
+    private fun observeAuthState() {
+        viewModelScope.launch {
+            authRepository.currentUser.collect { user ->
+                _uiState.update {
+                    it.copy(
+                        currentUserId = user?.uid,
+                        currentUserName = user?.displayName?.ifBlank { null } ?: user?.email?.substringBefore("@") ?: "Pengelana"
+                    )
+                }
+            }
+        }
+    }
+
+    private fun observeRealtimeCommunitySpots() {
+        viewModelScope.launch {
+            communitySpotRepository.observeCommunitySpots().collect { spots ->
+                _uiState.update { current ->
+                    val myUid = current.currentUserId
+                    val filtered = spots.filter { spot ->
+                        !spot.isAutoHidden || (myUid != null && spot.authorId == myUid)
+                    }
+                    val visible = if (current.selectedCategoryFilter == null) {
+                        filtered
+                    } else {
+                        filtered.filter { it.category == current.selectedCategoryFilter }
+                    }
+                    current.copy(
+                        allCommunitySpots = filtered,
+                        visibleCommunitySpots = visible
+                    )
+                }
+            }
+        }
+    }
+
+    private fun selectCommunitySpotById(spotId: String) {
+        val current = _uiState.value
+        val spot = current.allCommunitySpots.find { it.id == spotId } ?: return
+        _uiState.update {
+            it.copy(
+                selection = MapSelection.CommunitySpotSelected(spot),
+                selectedSiteUnlockStatus = null,
+                focusedSpearDistanceMeters = null
+            )
+        }
+        sendEffect(
+            MapUiEffect.AnimateCamera(
+                target = spot.geoPoint,
+                zoom = 18.0,
+                tilt = current.cameraTilt,
+                bearing = 0.0,
+                durationMs = 800
+            )
+        )
+    }
+
+    private fun setCategoryFilter(category: CommunitySpotCategory?) {
+        _uiState.update { current ->
+            val visible = if (category == null) {
+                current.allCommunitySpots
+            } else {
+                current.allCommunitySpots.filter { it.category == category }
+            }
+            current.copy(
+                selectedCategoryFilter = category,
+                visibleCommunitySpots = visible
+            )
+        }
+    }
+
+    private fun toggleHelpful(spotId: String) {
+        val uid = _uiState.value.currentUserId
+        if (uid.isNullOrBlank()) {
+            sendEffect(MapUiEffect.ShowToast("Silakan login untuk menandai bermanfaat"))
+            return
+        }
+        viewModelScope.launch {
+            communitySpotRepository.toggleHelpful(spotId, uid).onSuccess { isHelpful ->
+                val selection = _uiState.value.selection
+                if (selection is MapSelection.CommunitySpotSelected && selection.spot.id == spotId) {
+                    val updatedList = if (isHelpful) {
+                        selection.spot.helpfulUserIds + uid
+                    } else {
+                        selection.spot.helpfulUserIds - uid
+                    }
+                    val updatedSpot = selection.spot.copy(helpfulUserIds = updatedList)
+                    _uiState.update { it.copy(selection = MapSelection.CommunitySpotSelected(updatedSpot)) }
+                }
+            }
+        }
+    }
+
+    private fun reportSpot(spotId: String, reason: String) {
+        val uid = _uiState.value.currentUserId
+        if (uid.isNullOrBlank()) {
+            sendEffect(MapUiEffect.ShowToast("Silakan login untuk melaporkan"))
+            return
+        }
+        viewModelScope.launch {
+            communitySpotRepository.reportSpot(spotId, uid, reason).onSuccess {
+                sendEffect(MapUiEffect.ShowToast("Laporan terkirim. Terima kasih atas bantuan Anda."))
+                clearSelection()
+            }
+        }
+    }
+
+    private fun deleteSpot(spotId: String) {
+        viewModelScope.launch {
+            communitySpotRepository.deleteCommunitySpot(spotId).onSuccess {
+                sendEffect(MapUiEffect.ShowToast("Spot berhasil dihapus"))
+                clearSelection()
+            }
+        }
+    }
+
+    private fun startAddSpot(initialCoordinate: GeoPoint?, targetSiteId: String?) {
+        val current = _uiState.value
+        val coord = initialCoordinate
+            ?: (if (targetSiteId != null) current.allSites.find { it.id == targetSiteId }?.geoPoint else null)
+            ?: current.userLocation
+            ?: GeoPoint(-7.7520, 110.4914) // default Candi Prambanan
+
+        _uiState.update {
+            it.copy(
+                isAddingCommunitySpot = true,
+                draftSpotCoordinate = coord,
+                draftTargetSiteId = targetSiteId
+            )
+        }
+    }
+
+    private fun dismissAddSpot() {
+        _uiState.update {
+            it.copy(
+                isAddingCommunitySpot = false,
+                draftSpotCoordinate = null,
+                draftTargetSiteId = null,
+                isSavingCommunitySpot = false
+            )
+        }
+    }
+
+    private fun updateDraftCoordinate(coordinate: GeoPoint) {
+        _uiState.update { it.copy(draftSpotCoordinate = coordinate) }
+    }
+
+    private fun submitCommunitySpot(
+        title: String,
+        description: String,
+        category: CommunitySpotCategory,
+        imageBytes: ByteArray?
+    ) {
+        val state = _uiState.value
+        val uid = state.currentUserId
+        if (uid.isNullOrBlank()) {
+            sendEffect(MapUiEffect.ShowToast("Silakan login terlebih dahulu untuk berbagi temuan"))
+            return
+        }
+        val coord = state.draftSpotCoordinate ?: run {
+            sendEffect(MapUiEffect.ShowToast("Pilih lokasi terlebih dahulu di peta"))
+            return
+        }
+
+        // Radius <= 500 meter = Verified On-Site
+        val isVerified = state.userLocation?.let { userLoc ->
+            userLoc.distanceToMeters(coord) <= 500f
+        } ?: false
+
+        val spot = CommunitySpot(
+            title = title.trim(),
+            description = description.trim(),
+            category = category,
+            latitude = coord.latitude,
+            longitude = coord.longitude,
+            targetSiteId = state.draftTargetSiteId,
+            authorId = uid,
+            authorName = state.currentUserName ?: "Pengelana",
+            isVerifiedOnSite = isVerified
+        )
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSavingCommunitySpot = true) }
+            val result = communitySpotRepository.createCommunitySpot(spot, imageBytes)
+            result.onSuccess { createdSpot ->
+                _uiState.update {
+                    it.copy(
+                        isSavingCommunitySpot = false,
+                        isAddingCommunitySpot = false,
+                        draftSpotCoordinate = null,
+                        draftTargetSiteId = null
+                    )
+                }
+                sendEffect(MapUiEffect.ShowToast("Temuan berhasil dibagikan! +30 XP"))
+                selectCommunitySpotById(createdSpot.id)
+            }.onFailure {
+                _uiState.update {
+                    it.copy(
+                        isSavingCommunitySpot = false,
+                        isAddingCommunitySpot = false,
+                        draftSpotCoordinate = null,
+                        draftTargetSiteId = null
+                    )
+                }
+                sendEffect(MapUiEffect.ShowToast("Disimpan ke draf lokal. Akan diunggah saat koneksi tersedia."))
+            }
+        }
     }
 
     private fun sendEffect(effect: MapUiEffect) {

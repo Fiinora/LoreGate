@@ -85,4 +85,10 @@ class FirestoreUserRepository(
                 userRef.update(*updates.toTypedArray())
             }
         }
+
+    override suspend fun addExperiencePoints(uid: String, xp: Int): Result<Unit> = runCatching {
+        if (xp <= 0) return@runCatching
+        val userRef = usersCollection.document(uid)
+        userRef.update("experiencePoints" to FieldValue.increment(xp))
+    }
 }

@@ -8,6 +8,7 @@ import android.graphics.Typeface
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import com.loregate.app.core.designsystem.OrangePrimary
+import com.loregate.app.domain.model.CommunitySpotCategory
 import com.loregate.app.domain.model.SiteType
 
 object MapMarkerBitmapGenerator {
@@ -183,5 +184,92 @@ object MapMarkerBitmapGenerator {
 
         cachedSpearBitmap = bmp
         return bmp
+    }
+
+    fun createCommunityMarkerBitmap(category: CommunitySpotCategory, isSelected: Boolean): Bitmap {
+        val size = 120
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        val paint = Paint().apply { isAntiAlias = true }
+
+        val categoryColorInt = runCatching {
+            android.graphics.Color.parseColor(category.hexColor)
+        }.getOrElse { android.graphics.Color.parseColor("#EC9213") }
+
+        if (isSelected) {
+            paint.color = categoryColorInt
+            paint.alpha = 100
+            canvas.drawCircle(size / 2f, size / 2f, size / 2f, paint)
+
+            paint.alpha = 200
+            canvas.drawCircle(size / 2f, size / 2f, size / 2.3f, paint)
+
+            paint.alpha = 255
+            canvas.drawCircle(size / 2f, size / 2f, size / 2.6f, paint)
+
+            paint.color = android.graphics.Color.WHITE
+            paint.style = Paint.Style.FILL
+            canvas.drawCircle(size / 2f, size / 2f, size / 3.2f, paint)
+        } else {
+            // Shadow / outer ring
+            paint.color = android.graphics.Color.BLACK
+            paint.alpha = 50
+            canvas.drawCircle(size / 2f, size / 2f, size / 2.3f, paint)
+
+            // Category color ring
+            paint.color = categoryColorInt
+            paint.alpha = 255
+            paint.style = Paint.Style.FILL
+            canvas.drawCircle(size / 2f, size / 2f, size / 2.6f, paint)
+
+            // Inner white background for icon
+            paint.color = android.graphics.Color.WHITE
+            canvas.drawCircle(size / 2f, size / 2f, size / 3.4f, paint)
+        }
+
+        // Category emoji
+        paint.color = android.graphics.Color.BLACK
+        paint.textSize = 38f
+        paint.textAlign = Paint.Align.CENTER
+        paint.typeface = Typeface.DEFAULT_BOLD
+        val textY = size / 2f + paint.textSize / 3
+        canvas.drawText(category.emoji, size / 2f, textY, paint)
+
+        return bitmap
+    }
+
+    fun createClusterMarkerBitmap(count: Int): Bitmap {
+        val size = 110
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        val paint = Paint().apply { isAntiAlias = true }
+
+        // Outer glow
+        paint.color = android.graphics.Color.parseColor("#EA580C")
+        paint.alpha = 80
+        canvas.drawCircle(size / 2f, size / 2f, size / 2f, paint)
+
+        // Main cluster bubble
+        paint.alpha = 255
+        paint.color = android.graphics.Color.parseColor("#1E293B")
+        paint.style = Paint.Style.FILL
+        canvas.drawCircle(size / 2f, size / 2f, size / 2.5f, paint)
+
+        // Orange border
+        paint.color = android.graphics.Color.parseColor("#EA580C")
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = 6f
+        canvas.drawCircle(size / 2f, size / 2f, size / 2.5f, paint)
+        paint.style = Paint.Style.FILL
+
+        // Count text
+        paint.color = android.graphics.Color.WHITE
+        paint.textSize = 34f
+        paint.textAlign = Paint.Align.CENTER
+        paint.typeface = Typeface.DEFAULT_BOLD
+        val textY = size / 2f + paint.textSize / 3.2f
+        canvas.drawText(count.toString(), size / 2f, textY, paint)
+
+        return bitmap
     }
 }

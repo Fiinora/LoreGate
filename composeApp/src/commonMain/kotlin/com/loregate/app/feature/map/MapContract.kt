@@ -1,5 +1,7 @@
 package com.loregate.app.feature.map
 
+import com.loregate.app.domain.model.CommunitySpot
+import com.loregate.app.domain.model.CommunitySpotCategory
 import com.loregate.app.domain.model.GeoPoint
 import com.loregate.app.domain.model.HeritageStamp
 import com.loregate.app.domain.model.HeritageTrail
@@ -14,6 +16,7 @@ sealed interface MapSelection {
         val showTopBanner: Boolean = true
     ) : MapSelection
     data class SpearSelected(val spear: Spear) : MapSelection
+    data class CommunitySpotSelected(val spot: CommunitySpot) : MapSelection
 }
 
 data class MapUiState(
@@ -32,6 +35,15 @@ data class MapUiState(
     val collectedSpearCount: Int = 0,
     val isCollectingSpear: Boolean = false,
     val collectedSpearPopup: Spear? = null,
+    val allCommunitySpots: List<CommunitySpot> = emptyList(),
+    val visibleCommunitySpots: List<CommunitySpot> = emptyList(),
+    val selectedCategoryFilter: CommunitySpotCategory? = null,
+    val isAddingCommunitySpot: Boolean = false,
+    val draftSpotCoordinate: GeoPoint? = null,
+    val draftTargetSiteId: String? = null,
+    val isSavingCommunitySpot: Boolean = false,
+    val currentUserId: String? = null,
+    val currentUserName: String? = null,
     val selection: MapSelection = MapSelection.None,
     val selectedSiteUnlockStatus: SiteUnlockStatus? = null,
     val focusedSpearDistanceMeters: Float? = null,
@@ -52,6 +64,9 @@ data class MapUiState(
 
     val focusedSpear: Spear?
         get() = (selection as? MapSelection.SpearSelected)?.spear
+
+    val selectedCommunitySpot: CommunitySpot?
+        get() = (selection as? MapSelection.CommunitySpotSelected)?.spot
 }
 
 sealed interface MapUiEvent {
@@ -66,6 +81,22 @@ sealed interface MapUiEvent {
     data object OnSeedInitialDataClicked : MapUiEvent
     data class OnSiteMarkerClicked(val siteId: String) : MapUiEvent
     data class OnSpearMarkerClicked(val spearId: String) : MapUiEvent
+    data class OnCommunitySpotMarkerClicked(val spotId: String) : MapUiEvent
+    data object OnDismissCommunitySpotSelection : MapUiEvent
+    data class OnCategoryFilterClicked(val category: CommunitySpotCategory?) : MapUiEvent
+    data class OnToggleHelpfulClicked(val spotId: String) : MapUiEvent
+    data class OnReportSpotClicked(val spotId: String, val reason: String) : MapUiEvent
+    data class OnDeleteSpotClicked(val spotId: String) : MapUiEvent
+    data class OnStartAddSpot(val initialCoordinate: GeoPoint? = null, val targetSiteId: String? = null) : MapUiEvent
+    data object OnDismissAddSpot : MapUiEvent
+    data class OnUpdateDraftCoordinate(val coordinate: GeoPoint) : MapUiEvent
+    data class OnSubmitCommunitySpot(
+        val title: String,
+        val description: String,
+        val category: CommunitySpotCategory,
+        val imageBytes: ByteArray?
+    ) : MapUiEvent
+    data class OnAddTipForSiteClicked(val siteId: String) : MapUiEvent
     data object OnMapEmptyClicked : MapUiEvent
     data object OnDismissSiteSelection : MapUiEvent
     data object OnDismissSpearSelection : MapUiEvent
@@ -99,4 +130,5 @@ sealed interface MapUiEffect {
     data class NavigateToChapterDetail(val siteId: String) : MapUiEffect
     data object NavigateToProfile : MapUiEffect
     data object NavigateBack : MapUiEffect
+    data class ShowToast(val message: String) : MapUiEffect
 }
